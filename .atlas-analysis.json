@@ -1,0 +1,85 @@
+{
+  "projectType": "saas",
+  "projectName": "Task Manager",
+  "projectDescription": "A full-stack task management application with categories, built with Express and vanilla JavaScript",
+  "theme": "mint",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/task-management",
+              "features/categories",
+              "features/frontend-ui"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/backend",
+              "architecture/frontend",
+              "architecture/database"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["api/overview", "api/data-models"]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/tasks/get-all",
+              "api/tasks/get-by-id",
+              "api/tasks/create",
+              "api/tasks/update",
+              "api/tasks/delete",
+              "api/categories/get-all",
+              "api/categories/get-by-id",
+              "api/categories/create",
+              "api/categories/update",
+              "api/categories/delete"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "RESTful API with Express.js",
+    "Task CRUD operations with completion tracking",
+    "Category management with automatic task reassignment",
+    "File-based database using db-local",
+    "Vanilla JavaScript frontend with MVC architecture",
+    "Zod schema validation",
+    "Automatic timestamp management",
+    "UUID-based entity identification"
+  ],
+  "publicApiSurface": [
+    "GET /api/tasks",
+    "GET /api/tasks/:id",
+    "POST /api/tasks",
+    "PATCH /api/tasks/:id",
+    "DELETE /api/tasks/:id",
+    "GET /api/taskCategories",
+    "GET /api/taskCategories/:id",
+    "POST /api/taskCategories",
+    "PATCH /api/taskCategories/:id",
+    "POST /api/taskCategories/delete"
+  ]
+}

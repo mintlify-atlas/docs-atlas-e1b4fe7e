@@ -1,0 +1,575 @@
+---
+title: 'Delete Categories'
+api: 'POST /api/taskCategories/delete'
+description: 'Delete one or more categories and reassign their tasks'
+---
+
+## Endpoint
+
+```
+POST /api/taskCategories/delete
+```
+
+Deletes one or more task categories from the system. All tasks assigned to the deleted categories are automatically reassigned to `"uncategorized"` to maintain referential integrity.
+
+<Warning>
+  This endpoint uses POST method (not DELETE) because it requires a request body with an array of category IDs.
+</Warning>
+
+<Info>
+  **Data Integrity**: This operation automatically reassigns all tasks from deleted categories to `"uncategorized"`. No tasks are lost in the deletion process.
+</Info>
+
+## Request Body
+
+<ParamField body="categoriesIds" type="array" required>
+  An array of category UUIDs to delete. Must be an array even when deleting a single category.
+  
+  **Behavior:**
+  - Invalid or non-existent IDs are silently ignored
+  - Empty array is accepted but performs no deletions
+  - All tasks from deleted categories are reassigned to `"uncategorized"`
+  
+  Example: `["a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"]`
+</ParamField>
+
+## Response
+
+On successful deletion, this endpoint returns no response body (204 No Content).
+
+## Status Codes
+
+- **204 No Content** - Categories successfully deleted (no response body)
+- **400 Bad Request** - Invalid request body (not an array)
+- **404 Not Found** - None of the provided category IDs exist
+- **500 Internal Server Error** - Server-side error during deletion
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL - Single Category
+curl -X POST http://localhost:3000/api/taskCategories/delete \
+  -H "Content-Type: application/json" \
+  -d '{
+    "categoriesIds": ["a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"]
+  }'
+```
+
+```bash cURL - Multiple Categories
+curl -X POST http://localhost:3000/api/taskCategories/delete \
+  -H "Content-Type: application/json" \
+  -d '{
+    "categoriesIds": [
+      "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f"
+    ]
+  }'
+```
+
+```javascript JavaScript - Single Category
+const categoryId = 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d';
+
+const response = await fetch('http://localhost:3000/api/taskCategories/delete', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    categoriesIds: [categoryId]
+  })
+});
+
+if (response.status === 204) {
+  console.log('Category deleted successfully');
+} else if (response.status === 404) {
+  console.log('Category not found');
+}
+```
+
+```javascript JavaScript - Multiple Categories
+const categoryIds = [
+  'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d',
+  'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
+];
+
+const response = await fetch('http://localhost:3000/api/taskCategories/delete', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    categoriesIds: categoryIds
+  })
+});
+
+if (response.status === 204) {
+  console.log(`Deleted ${categoryIds.length} categories`);
+}
+```
+
+```javascript JavaScript with Error Handling
+async function deleteCategories(categoryIds) {
+  try {
+    const response = await fetch('http://localhost:3000/api/taskCategories/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        categoriesIds: Array.isArray(categoryIds) ? categoryIds : [categoryIds]
+      })
+    });
+    
+    if (response.status === 204) {
+      console.log('Categories deleted successfully');
+      return true;
+    }
+    
+    if (response.status === 400) {
+      const error = await response.json();
+      console.error('Invalid request:', error);
+      return false;
+    }
+    
+    if (response.status === 404) {
+      console.error('Categories not found');
+      return false;
+    }
+    
+    if (response.status === 500) {
+      const error = await response.json();
+      console.error('Server error:', error);
+      return false;
+    }
+    
+    throw new Error(`Unexpected status: ${response.status}`);
+    
+  } catch (error) {
+    console.error('Error deleting categories:', error);
+    return false;
+  }
+}
+
+// Usage - single category
+await deleteCategories('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d');
+
+// Usage - multiple categories
+await deleteCategories([
+  'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d',
+  'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
+]);
+```
+
+</CodeGroup>
+
+### Request Examples
+
+<CodeGroup>
+
+```json Single Category
+{
+  "categoriesIds": ["a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"]
+}
+```
+
+```json Multiple Categories
+{
+  "categoriesIds": [
+    "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+    "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f"
+  ]
+}
+```
+
+```json Empty Array (No-op)
+{
+  "categoriesIds": []
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```text 204 No Content
+(No response body)
+```
+
+```json 400 Bad Request - Invalid Type
+{
+  "error": "Datos no validos, se esperaba un array"
+}
+```
+
+```json 404 Not Found
+{
+  "message": "Categories not found"
+}
+```
+
+```json 500 Internal Server Error
+{
+  "message": "Error interno al procesar el borrado masivo"
+}
+```
+
+</CodeGroup>
+
+## Task Reassignment Behavior
+
+When categories are deleted, the API automatically reassigns all associated tasks:
+
+<Steps>
+  <Step title="Identify Affected Tasks">
+    The API finds all tasks where `categoryId` matches any of the deleted category IDs.
+  </Step>
+  
+  <Step title="Reassign to Uncategorized">
+    All identified tasks have their `categoryId` field set to `"uncategorized"`.
+  </Step>
+  
+  <Step title="Update Timestamps">
+    The `updatedAt` field is set to the current timestamp for all reassigned tasks.
+  </Step>
+  
+  <Step title="Delete Categories">
+    After tasks are reassigned, the categories are permanently deleted.
+  </Step>
+</Steps>
+
+### Example Flow
+
+**Before Deletion:**
+```json
+// Category
+{ "_id": "cat-uuid", "name": "Work" }
+
+// Tasks
+[
+  { "_id": "task-1", "title": "Task 1", "categoryId": "cat-uuid" },
+  { "_id": "task-2", "title": "Task 2", "categoryId": "cat-uuid" }
+]
+```
+
+**After Deletion:**
+```json
+// Category deleted
+
+// Tasks reassigned
+[
+  { "_id": "task-1", "title": "Task 1", "categoryId": "uncategorized" },
+  { "_id": "task-2", "title": "Task 2", "categoryId": "uncategorized" }
+]
+```
+
+## Usage Notes
+
+<Warning>
+  **POST Method Required**: Unlike typical DELETE operations, this endpoint uses POST because it requires a request body. Standard DELETE requests do not typically include bodies.
+</Warning>
+
+<Info>
+  **Array Required**: The `categoriesIds` parameter must always be an array, even when deleting a single category. Passing a single string will result in a 400 error.
+</Info>
+
+<Note>
+  **Partial Success**: If some IDs in the array don't exist, they are silently ignored. The operation will succeed (204) as long as at least one valid ID is processed.
+</Note>
+
+<Tip>
+  **No Response Body**: Successful deletions return 204 with no response body. Don't try to parse JSON from the response.
+</Tip>
+
+## Common Use Cases
+
+### Delete Single Category with Confirmation
+
+```javascript
+async function deleteCategoryWithConfirmation(categoryId) {
+  // First, get category details
+  const getResponse = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`
+  );
+  
+  if (!getResponse.ok) {
+    console.error('Category not found');
+    return false;
+  }
+  
+  const category = await getResponse.json();
+  
+  // Get tasks count in this category
+  const tasksResponse = await fetch('http://localhost:3000/api/tasks');
+  const allTasks = await tasksResponse.json();
+  const affectedTasks = allTasks.filter(t => t.categoryId === categoryId);
+  
+  // Confirm deletion
+  const confirmed = confirm(
+    `Delete category "${category.name}"?\n` +
+    `${affectedTasks.length} task(s) will be moved to Uncategorized.`
+  );
+  
+  if (!confirmed) {
+    return false;
+  }
+  
+  // Delete category
+  const deleteResponse = await fetch(
+    'http://localhost:3000/api/taskCategories/delete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoriesIds: [categoryId] })
+    }
+  );
+  
+  return deleteResponse.status === 204;
+}
+```
+
+### Delete Multiple Categories
+
+```javascript
+async function deleteMultipleCategories(categoryIds) {
+  const response = await fetch(
+    'http://localhost:3000/api/taskCategories/delete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoriesIds: categoryIds })
+    }
+  );
+  
+  if (response.status === 204) {
+    console.log(`Successfully deleted ${categoryIds.length} categories`);
+    return true;
+  }
+  
+  return false;
+}
+
+// Usage
+await deleteMultipleCategories([
+  'uuid-1',
+  'uuid-2',
+  'uuid-3'
+]);
+```
+
+### Delete Empty Categories
+
+```javascript
+async function deleteEmptyCategories() {
+  // Fetch all categories and tasks
+  const [categoriesRes, tasksRes] = await Promise.all([
+    fetch('http://localhost:3000/api/taskCategories'),
+    fetch('http://localhost:3000/api/tasks')
+  ]);
+  
+  const categories = await categoriesRes.json();
+  const tasks = await tasksRes.json();
+  
+  // Find categories with no tasks
+  const emptyCategories = categories.filter(category => {
+    return !tasks.some(task => task.categoryId === category._id);
+  });
+  
+  if (emptyCategories.length === 0) {
+    console.log('No empty categories found');
+    return [];
+  }
+  
+  console.log(`Found ${emptyCategories.length} empty categories`);
+  
+  // Delete them
+  const categoryIds = emptyCategories.map(c => c._id);
+  const response = await fetch(
+    'http://localhost:3000/api/taskCategories/delete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoriesIds: categoryIds })
+    }
+  );
+  
+  if (response.status === 204) {
+    console.log('Empty categories deleted');
+    return emptyCategories;
+  }
+  
+  return [];
+}
+```
+
+### Delete Category and Verify Task Reassignment
+
+```javascript
+async function deleteCategoryAndVerify(categoryId) {
+  // Get tasks before deletion
+  const tasksBeforeRes = await fetch('http://localhost:3000/api/tasks');
+  const tasksBefore = await tasksBeforeRes.json();
+  const affectedTasksBefore = tasksBefore.filter(t => t.categoryId === categoryId);
+  
+  console.log(`Tasks in category before deletion: ${affectedTasksBefore.length}`);
+  
+  // Delete category
+  const deleteRes = await fetch(
+    'http://localhost:3000/api/taskCategories/delete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoriesIds: [categoryId] })
+    }
+  );
+  
+  if (deleteRes.status !== 204) {
+    console.error('Failed to delete category');
+    return false;
+  }
+  
+  // Verify tasks were reassigned
+  const tasksAfterRes = await fetch('http://localhost:3000/api/tasks');
+  const tasksAfter = await tasksAfterRes.json();
+  
+  const reassignedTasks = affectedTasksBefore.map(oldTask => {
+    return tasksAfter.find(t => t._id === oldTask._id);
+  });
+  
+  const allReassigned = reassignedTasks.every(
+    task => task && task.categoryId === 'uncategorized'
+  );
+  
+  if (allReassigned) {
+    console.log(`All ${reassignedTasks.length} tasks reassigned to uncategorized`);
+    return true;
+  } else {
+    console.error('Some tasks were not properly reassigned');
+    return false;
+  }
+}
+```
+
+## Integration Examples
+
+### React Delete Button
+
+```javascript
+import { useState } from 'react';
+
+function DeleteCategoryButton({ category, onDeleted }) {
+  const [deleting, setDeleting] = useState(false);
+  
+  const handleDelete = async () => {
+    if (!confirm(`Delete category "${category.name}"?`)) {
+      return;
+    }
+    
+    setDeleting(true);
+    
+    try {
+      const response = await fetch(
+        'http://localhost:3000/api/taskCategories/delete',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categoriesIds: [category._id] })
+        }
+      );
+      
+      if (response.status === 204) {
+        onDeleted(category._id);
+      } else {
+        alert('Failed to delete category');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error deleting category');
+    } finally {
+      setDeleting(false);
+    }
+  };
+  
+  return (
+    <button onClick={handleDelete} disabled={deleting}>
+      {deleting ? 'Deleting...' : 'Delete'}
+    </button>
+  );
+}
+```
+
+## Best Practices
+
+<Tip>
+  **Always Confirm**: Implement user confirmation before deleting categories, especially if they contain tasks.
+</Tip>
+
+<Tip>
+  **Show Task Count**: Display how many tasks will be affected before deletion to help users make informed decisions.
+</Tip>
+
+<Tip>
+  **Handle Array Format**: Always ensure `categoriesIds` is an array. Use `Array.isArray()` checks or wrap single values in an array.
+</Tip>
+
+<Warning>
+  **Irreversible Operation**: Category deletion is permanent. Consider implementing an "archive" feature instead of hard deletion for important data.
+</Warning>
+
+## Error Handling
+
+```javascript
+async function deleteCategoriesSafely(categoryIds) {
+  // Validate input
+  if (!Array.isArray(categoryIds)) {
+    categoryIds = [categoryIds];
+  }
+  
+  if (categoryIds.length === 0) {
+    console.log('No categories to delete');
+    return { success: true, message: 'No categories to delete' };
+  }
+  
+  try {
+    const response = await fetch(
+      'http://localhost:3000/api/taskCategories/delete',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categoriesIds: categoryIds })
+      }
+    );
+    
+    if (response.status === 204) {
+      return { 
+        success: true, 
+        message: `Deleted ${categoryIds.length} categories` 
+      };
+    }
+    
+    if (response.status === 400) {
+      const error = await response.json();
+      return { success: false, error: 'Invalid request', details: error };
+    }
+    
+    if (response.status === 404) {
+      return { success: false, error: 'Categories not found' };
+    }
+    
+    if (response.status === 500) {
+      const error = await response.json();
+      return { success: false, error: 'Server error', details: error };
+    }
+    
+    return { success: false, error: 'Unexpected error' };
+    
+  } catch (error) {
+    return { success: false, error: 'Network error', details: error };
+  }
+}
+```
+
+## Related Endpoints
+
+- [Get All Categories](/api/categories/get-all) - List all categories
+- [Get Category by ID](/api/categories/get-by-id) - Verify category before deletion
+- [Create Category](/api/categories/create) - Create a new category
+- [Update Category](/api/categories/update) - Modify category name instead of deleting

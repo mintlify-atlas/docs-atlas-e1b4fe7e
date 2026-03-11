@@ -1,0 +1,449 @@
+---
+title: 'Category Management'
+description: 'Category CRUD operations with automatic task reassignment when categories are deleted'
+icon: 'folder-tree'
+---
+
+## Overview
+
+The Task Manager includes a powerful category system that allows tasks to be organized and filtered. When categories are deleted, the system automatically reassigns associated tasks to prevent data loss.
+
+## Category Data Model
+
+Categories have a simple structure:
+
+```typescript
+interface TaskCategory {
+  _id: string;      // UUID
+  name: string;     // 2-25 characters
+}
+```
+
+<Info>
+  Categories are intentionally lightweight, focusing on a simple name-based organization system.
+</Info>
+
+## Creating Categories
+
+### Backend Implementation
+
+```javascript ~/workspace/source/src/models/taskCategory.js
+import { randomUUID } from "node:crypto";
+import { TaskCategories } from "../DB/DB_schemas.js";
+
+export class TaskCategoryModel {
+  static create({ input }) {
+    try {
+      const newCategory = {
+        _id: randomUUID(),
+        name: input.name,
+      };
+
+      TaskCategories.create(newCategory).save();
+      return newCategory;
+
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+```
+
+### Validation Schema
+
+Category names are validated with Zod:
+
+```javascript ~/workspace/source/src/schemas/taskCategory.js
+import z from 'zod';
+
+const taskCategorySchema = z.object({
+  name: z.string().min(2).max(25)
+});
+
+export function validateTaskCategory(input) {
+  return taskCategorySchema.safeParse(input);
+}
+```
+
+<Note>
+  Category names must be between 2 and 25 characters. The validation ensures consistency across the application.
+</Note>
+
+### Controller with Error Handling
+
+```javascript ~/workspace/source/src/controllers/taskCategory.js
+import { TaskCategoryModel } from "../models/taskCategory.js";
+import { validateTaskCategory } from "../schemas/taskCategory.js";
+
+export class TaskCategoryController {
+  static async create(req, res) {
+    const validate = validateTaskCategory(req.body);
+    if (validate.error) {
+      res.status(400).json(validate.error);
+      return;
+    }
+
+    try {
+      const newCategory = TaskCategoryModel.create({ input: validate.data });
+      res.status(201).json(newCategory);
+    } catch (error) {
+      console.error("[CategoryController Error]:", error);
+      return res.status(500).json({ 
+        error: "No se pudo crear la categoría en el servidor" 
+      });
+    }
+  }
+}
+```
+
+## Reading Categories
+
+### Get All Categories
+
+```javascript ~/workspace/source/src/models/taskCategory.js
+static async getAll(filters = {}) {
+  return await TaskCategories.find(filters);
+}
+```
+
+### Get Category by ID
+
+```javascript ~/workspace/source/src/models/taskCategory.js
+static async getById(taskCategoryId) {
+  return await TaskCategories.findOne({ _id: taskCategoryId });
+}
+```
+
+<CodeGroup>
+```javascript Controller - Get All
+static async getAll(req, res) {
+  const categories = await TaskCategoryModel.getAll();
+  res.status(200).json(categories);
+}
+```
+
+```javascript Controller - Get by ID
+static async getById(req, res) {
+  const { id } = req.params;
+  const category = await TaskCategoryModel.getById(id);
+  if (!category) {
+    res.status(404).json({ message: "Category not found" });
+    return;
+  }
+  res.status(200).json(category);
+}
+```
+</CodeGroup>
+
+## Updating Categories
+
+```javascript ~/workspace/source/src/models/taskCategory.js
+static async update(taskCategoryId, input) {
+  const categoryExists = await this.getById(taskCategoryId);
+  if (!categoryExists) {
+    return null;
+  }
+
+  await categoryExists.update(input).save();
+  const categoryUpdated = await this.getById(taskCategoryId);
+  return categoryUpdated;
+}
+```
+
+The controller validates input and handles errors:
+
+```javascript ~/workspace/source/src/controllers/taskCategory.js
+static async update(req, res) {
+  const validate = validateTaskCategory(req.body);
+  if (validate.error) {
+    res.status(400).json({ error: "Datos no validos o incompletos" });
+    return;
+  }
+
+  const { id } = req.params;
+  const updatedCategory = await TaskCategoryModel.update(id, validate.data);
+  if (!updatedCategory) {
+    res.status(404).json({ message: "Category not found" });
+    return;
+  }
+  res.status(200).json(updatedCategory);
+}
+```
+
+## Deleting Categories
+
+### The Challenge: Orphaned Tasks
+
+When a category is deleted, all tasks associated with that category could become orphaned. The application solves this with automatic task reassignment.
+
+### Two-Step Deletion Process
+
+<Steps>
+  <Step title="Reassign Tasks">
+    Find all tasks in the deleted categories and reassign them to "uncategorized"
+  </Step>
+  
+  <Step title="Delete Categories">
+    Remove the category records from the database
+  </Step>
+</Steps>
+
+### Service Layer Implementation
+
+The `TaskCategoryService` orchestrates the deletion process:
+
+```javascript ~/workspace/source/src/services/taskCategory.js
+import { TaskModel } from "../models/task.js";
+import { TaskCategoryModel } from "../models/taskCategory.js";
+
+export class TaskCategoryService {
+  static async deleteCategories(categoriesId) {
+    // Find tasks with these categories and set categoryId to "uncategorized"
+    await TaskModel.updateMany("categoryId", categoriesId, "uncategorized");
+    
+    // Delete the categories
+    const result = await TaskCategoryModel.delete(categoriesId);
+    return result !== false;
+  }
+}
+```
+
+<Warning>
+  Tasks are automatically moved to the "uncategorized" category, not deleted. This ensures no task data is lost during category deletion.
+</Warning>
+
+### Bulk Category Deletion
+
+The model supports deleting multiple categories at once:
+
+```javascript ~/workspace/source/src/models/taskCategory.js
+static async delete(taskCategoriesId) {
+  const categoriesToDelete = await TaskCategories.find({"_id": {$in: taskCategoriesId}});
+  if (!categoriesToDelete) return false;
+
+  try {
+    categoriesToDelete.forEach((category) => {
+      TaskCategories.remove(category._id);
+    }); 
+  } catch (error) {
+    return error;
+  }
+}
+```
+
+### Controller Endpoint
+
+```javascript ~/workspace/source/src/controllers/taskCategory.js
+static async delete(req, res) {
+  const { categoriesIds } = req.body;
+  if (!Array.isArray(categoriesIds)) {
+    return res.status(400).json({ error: "Datos no validos, se esperaba un array" });
+  }
+
+  try {
+    const result = await TaskCategoryService.deleteCategories(categoriesIds);
+    if (result === false) {
+      return res.status(404).json({ message: "Categories not found" });
+    }
+    res.status(204).end();
+  } catch (error) {
+    console.error("Error en CategoryController.delete:", error);
+    return res.status(500).json({ 
+      message: "Error interno al procesar el borrado masivo" 
+    });
+  }
+}
+```
+
+<Accordion title="Why Array-Based Deletion?">
+  The API accepts an array of category IDs to enable efficient bulk deletion operations. This is particularly useful in the UI where users can select multiple categories to delete at once.
+</Accordion>
+
+## The "Uncategorized" Category
+
+### Special Category Behavior
+
+The application includes a special "uncategorized" category:
+
+- **ID**: `"uncategorized"`
+- **Purpose**: Default category for tasks without an explicit category
+- **Cannot be deleted**: This is a system category
+- **Always visible**: Appears first in category lists
+
+### Frontend Implementation
+
+The frontend automatically includes the "uncategorized" category:
+
+```javascript ~/workspace/source/public/js/controllers/Task.js
+async getPreparedCategory() {
+  const categories = await this.taskCategoryService.getAll();
+  let orderCategories = [];
+  if (categories.length > 0) {
+    orderCategories = sortCollection(categories, this.sortCategoriesBy, this.sortCategoriesDirection);
+  }
+  // Add "Sin categoría" (Uncategorized) at the beginning
+  orderCategories.unshift({_id: 'uncategorized', name: 'Sin categoría'});
+  return orderCategories;
+}
+```
+
+<Info>
+  The "uncategorized" category acts as a safety net, ensuring every task always belongs to at least one category.
+</Info>
+
+## Category-Task Relationship
+
+### Task Update During Deletion
+
+The `updateMany` method in TaskModel handles bulk reassignment:
+
+```javascript ~/workspace/source/src/models/task.js
+static async updateMany(propiedad, values, newValue) {
+  const filterQuery = { [propiedad]: { $in: values } };
+  const tasksToUpdate = await Tasks.find(filterQuery);
+  if (tasksToUpdate.length === 0) return 0;
+
+  tasksToUpdate.forEach((task) => {
+    task
+      .update({
+        [propiedad]: newValue,
+        updatedAt: new Date().toISOString(),
+      })
+      .save();
+  });
+  return tasksToUpdate.length;
+}
+```
+
+### Data Flow Diagram
+
+<Tabs>
+  <Tab title="Normal Deletion">
+    ```mermaid
+    graph TD
+      A[Delete Category Request] --> B[Service Layer]
+      B --> C[Update Tasks: categoryId → uncategorized]
+      C --> D[Delete Category Records]
+      D --> E[Return Success]
+    ```
+  </Tab>
+  
+  <Tab title="Error Handling">
+    ```mermaid
+    graph TD
+      A[Delete Category Request] --> B{Categories Exist?}
+      B -->|No| C[Return 404]
+      B -->|Yes| D[Service Layer]
+      D --> E{Update Success?}
+      E -->|No| F[Return 500]
+      E -->|Yes| G[Delete Categories]
+      G --> H[Return 204]
+    ```
+  </Tab>
+</Tabs>
+
+## Frontend Integration
+
+### Custom Events for Synchronization
+
+The frontend uses custom events to keep the UI synchronized:
+
+```javascript ~/workspace/source/public/js/controllers/TaskCategory.js
+async addCategory() {
+  const categoryName = document.getElementById("add-category-input").value;
+  if (!categoryName) return;
+
+  try {
+    const newCategory = await this.categoryService.save(categoryName);
+    // Dispatch custom event to notify task view
+    const event = new CustomEvent('categoryUpdated', { 
+      detail: {action:'create', data: newCategory } 
+    });
+    window.dispatchEvent(event);
+    this.init();
+  } catch (error) {
+    console.error("Error al añadir categoría:", error.message);
+    alert(`No se pudo guardar: ${error.message}`);
+  }
+}
+```
+
+### Listening for Category Changes
+
+```javascript ~/workspace/source/public/js/controllers/Task.js
+addEventListeners() {
+  this.container.addEventListener('click', this.handleClickEvent.bind(this));
+  window.addEventListener('modal:confirm', (e) => this.handleModalEvent(e));
+  // Listen for category updates and refresh task view
+  window.addEventListener('categoryUpdated', (e) => this.init());
+}
+```
+
+<Tip>
+  The custom event pattern ensures the task list automatically refreshes when categories are added, updated, or deleted, keeping the UI consistent.
+</Tip>
+
+## API Routes
+
+```javascript ~/workspace/source/src/routes/taskCategories.js
+import { Router } from "express";
+import { TaskCategoryController } from "../controllers/taskCategory.js";
+
+export const taskCategoriesRouter = Router();
+
+taskCategoriesRouter.get("/", TaskCategoryController.getAll);
+taskCategoriesRouter.get("/:id", TaskCategoryController.getById);
+taskCategoriesRouter.post("/", TaskCategoryController.create);
+taskCategoriesRouter.post("/delete", TaskCategoryController.delete);
+taskCategoriesRouter.patch("/:id", TaskCategoryController.update);
+```
+
+<Note>
+  The delete endpoint uses POST instead of DELETE to support passing an array of category IDs in the request body.
+</Note>
+
+## Error Handling
+
+<CardGroup cols={2}>
+  <Card title="400 Bad Request" icon="circle-xmark">
+    Invalid category name or expected array not provided
+  </Card>
+  <Card title="404 Not Found" icon="magnifying-glass">
+    Category ID does not exist
+  </Card>
+  <Card title="500 Internal Server Error" icon="triangle-exclamation">
+    Database or bulk operation failure
+  </Card>
+  <Card title="201 Created" icon="plus">
+    Category successfully created
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Tip>
+  **Cascading Operations**: Always use the service layer for deletions to ensure tasks are properly reassigned.
+</Tip>
+
+<Tip>
+  **Validation**: Enforce the 2-25 character limit on both frontend and backend to maintain data consistency.
+</Tip>
+
+<Tip>
+  **Bulk Operations**: When deleting multiple categories, send them in a single request to reduce network overhead and ensure atomic operations.
+</Tip>
+
+<Warning>
+  Never directly delete categories from the model layer - always go through the service layer to prevent orphaned tasks.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Task Management" icon="list-check" href="/features/task-management">
+    Learn about task CRUD operations and timestamps
+  </Card>
+  <Card title="Frontend UI" icon="browser" href="/features/frontend-ui">
+    Explore how categories are displayed in the UI
+  </Card>
+</CardGroup>

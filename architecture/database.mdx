@@ -1,0 +1,622 @@
+---
+title: 'Database Layer'
+description: 'Complete guide to db-local setup, schemas, data persistence, and UUID generation'
+icon: 'database'
+---
+
+## Overview
+
+Task Manager uses **db-local**, a lightweight file-based JSON database for Node.js. This solution provides a simple, zero-configuration database that's perfect for development, prototyping, and small-scale applications.
+
+<Info>
+db-local stores data in JSON files on the filesystem, making it easy to inspect, backup, and version control your data.
+</Info>
+
+## Why db-local?
+
+<CardGroup cols={2}>
+  <Card title="Zero Configuration" icon="bolt">
+    No database server to install or configure. Just import and start using it.
+  </Card>
+  
+  <Card title="File-Based Storage" icon="file">
+    Data is stored in JSON files, making it human-readable and easy to debug.
+  </Card>
+  
+  <Card title="MongoDB-like API" icon="leaf">
+    Familiar query syntax with `find()`, `findOne()`, `create()`, `update()`, and `remove()`.
+  </Card>
+  
+  <Card title="Lightweight" icon="feather">
+    Minimal dependencies and small footprint—perfect for learning and prototyping.
+  </Card>
+</CardGroup>
+
+## Database Setup
+
+The database is configured in a single schema file:
+
+<CodeGroup>
+```javascript src/DB/DB_schemas.js
+import DBlocal from 'db-local';
+
+// Create database instance and specify storage location
+const { Schema } = new DBlocal({ path: './src/DB' });
+
+// Define Tasks schema
+export const Tasks = Schema('tasks', {
+  _id: { type: String, required: true },
+  title: { type: String, required: true },
+  description: { type: String },
+  completed: { type: Boolean, default: false },
+  createdAt: { type: String, required: true },
+  updatedAt: { type: String },
+  finishedAt: { type: String },
+  categoryId: { type: String, default: "" }
+});
+
+// Define TaskCategories schema
+export const TaskCategories = Schema('taskCategories', {
+  _id: { type: String, required: true },
+  name: { type: String, required: true }
+});
+```
+</CodeGroup>
+
+<Steps>
+  <Step title="Import db-local">
+    Import the library and create a new database instance.
+  </Step>
+  
+  <Step title="Set Storage Path">
+    Configure where JSON files will be stored: `./src/DB`
+  </Step>
+  
+  <Step title="Define Schemas">
+    Create schema definitions for each collection (Tasks and TaskCategories).
+  </Step>
+  
+  <Step title="Export Schemas">
+    Export schema instances for use in models.
+  </Step>
+</Steps>
+
+<Note>
+When you create a schema named `'tasks'`, db-local automatically creates a file at `./src/DB/tasks.json` to store the data.
+</Note>
+
+## Schema Definitions
+
+### Tasks Schema
+
+The Tasks schema defines the structure for task documents:
+
+<Accordion title="Tasks Schema Fields">
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `_id` | String | Yes | - | Unique identifier (UUID) |
+| `title` | String | Yes | - | Task title (3-25 chars) |
+| `description` | String | No | - | Task description |
+| `completed` | Boolean | No | `false` | Completion status |
+| `createdAt` | String | Yes | - | ISO timestamp |
+| `updatedAt` | String | No | - | ISO timestamp |
+| `finishedAt` | String | No | - | ISO timestamp |
+| `categoryId` | String | No | `""` | Reference to category |
+</Accordion>
+
+#### Example Task Document
+
+```json
+{
+  "_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "title": "Complete documentation",
+  "description": "Write architecture docs",
+  "completed": false,
+  "createdAt": "2026-03-11T10:30:00.000Z",
+  "updatedAt": "2026-03-11T11:45:00.000Z",
+  "categoryId": "work-category-id"
+}
+```
+
+### TaskCategories Schema
+
+The TaskCategories schema is simpler, with just two fields:
+
+<Accordion title="TaskCategories Schema Fields">
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `_id` | String | Yes | Unique identifier (UUID) |
+| `name` | String | Yes | Category name (2-25 chars) |
+</Accordion>
+
+#### Example Category Document
+
+```json
+{
+  "_id": "work-category-id",
+  "name": "Work"
+}
+```
+
+## UUID Generation
+
+The application uses Node.js's built-in `crypto` module to generate unique identifiers:
+
+<CodeGroup>
+```javascript src/models/task.js
+import { randomUUID } from "node:crypto";
+
+static create({ input }) {
+  const newTask = {
+    _id: randomUUID(), // Generates UUID v4
+    title: input.title,
+    description: input.description,
+    categoryId: input.categoryId,
+    createdAt: new Date().toISOString(),
+    completed: input.completed,
+  };
+  Tasks.create(newTask).save();
+  return newTask;
+}
+```
+</CodeGroup>
+
+<Info>
+**UUID v4 Characteristics:**
+- **Format**: `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`
+- **Uniqueness**: 122 bits of randomness
+- **Collision Probability**: Negligibly small (1 in 5.3 × 10³⁶)
+- **Example**: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
+</Info>
+
+<Tip>
+Using UUIDs instead of auto-incrementing integers provides globally unique identifiers that can be generated client-side or server-side without coordination.
+</Tip>
+
+## CRUD Operations
+
+db-local provides a MongoDB-like API for data operations:
+
+### Create
+
+<CodeGroup>
+```javascript Create Operation
+const newTask = {
+  _id: randomUUID(),
+  title: "New Task",
+  description: "Task description",
+  createdAt: new Date().toISOString(),
+  completed: false,
+};
+
+Tasks.create(newTask).save();
+```
+</CodeGroup>
+
+<Note>
+The `.save()` method must be called to persist the data to the JSON file.
+</Note>
+
+### Read
+
+<CodeGroup>
+```javascript Read Operations
+// Find all tasks
+const allTasks = await Tasks.find({});
+
+// Find tasks with filter
+const completedTasks = await Tasks.find({ completed: true });
+
+// Find single task by ID
+const task = await Tasks.findOne({ _id: taskId });
+
+// Find with $in operator
+const tasksInCategories = await Tasks.find({
+  categoryId: { $in: ["category1", "category2"] }
+});
+```
+</CodeGroup>
+
+<Accordion title="Supported Query Operators">
+db-local supports MongoDB-style query operators:
+
+- **`$in`**: Match any value in an array
+  ```javascript
+  { categoryId: { $in: ["id1", "id2"] } }
+  ```
+
+- **Exact Match**: Simple equality
+  ```javascript
+  { completed: true }
+  ```
+
+- **Multiple Conditions**: Object with multiple properties
+  ```javascript
+  { completed: false, categoryId: "work" }
+  ```
+</Accordion>
+
+### Update
+
+<CodeGroup>
+```javascript Update Operations
+// Update single task
+const task = await Tasks.findOne({ _id: taskId });
+if (task) {
+  await task.update({
+    title: "Updated Title",
+    updatedAt: new Date().toISOString()
+  }).save();
+}
+
+// Update multiple tasks
+const tasksToUpdate = await Tasks.find({ categoryId: { $in: oldCategoryIds } });
+tasksToUpdate.forEach((task) => {
+  task.update({
+    categoryId: newCategoryId,
+    updatedAt: new Date().toISOString(),
+  }).save();
+});
+```
+</CodeGroup>
+
+<Info>
+The `update()` method performs a **partial update**, only modifying the specified fields while leaving others unchanged.
+</Info>
+
+### Delete
+
+<CodeGroup>
+```javascript Delete Operations
+// Remove single task
+Tasks.remove(taskId);
+
+// Remove multiple tasks
+const tasksToDelete = await Tasks.find({ categoryId: deletedCategoryId });
+tasksToDelete.forEach((task) => {
+  Tasks.remove(task._id);
+});
+```
+</CodeGroup>
+
+## Advanced Patterns
+
+### Batch Updates
+
+The application implements a batch update pattern in the Task model:
+
+<CodeGroup>
+```javascript src/models/task.js
+static async updateMany(propiedad, values, newValue) {
+  const filterQuery = { [propiedad]: { $in: values } };
+  const tasksToUpdate = await Tasks.find(filterQuery);
+  
+  if (tasksToUpdate.length === 0) return 0;
+
+  tasksToUpdate.forEach((task) => {
+    task.update({
+      [propiedad]: newValue,
+      updatedAt: new Date().toISOString(),
+    }).save();
+  });
+  
+  return tasksToUpdate.length;
+}
+```
+</CodeGroup>
+
+<Tip>
+**Use Case**: When deleting a category, all tasks in that category need their `categoryId` updated to "uncategorized". The `updateMany()` method handles this efficiently.
+</Tip>
+
+### Cascading Deletes
+
+The application implements cascading deletes through the service layer:
+
+<CodeGroup>
+```javascript src/services/taskCategory.js
+import { TaskModel } from "../models/task.js";
+import { TaskCategoryModel } from "../models/taskCategory.js";
+
+export class TaskCategoryService {
+  static async deleteCategories(categoriesId) {
+    // Step 1: Update all tasks in deleted categories
+    await TaskModel.updateMany("categoryId", categoriesId, "uncategorized");
+    
+    // Step 2: Delete the categories
+    const result = await TaskCategoryModel.delete(categoriesId);
+    return result !== false;
+  }
+}
+```
+</CodeGroup>
+
+<Steps>
+  <Step title="Update Related Tasks">
+    Before deleting categories, update all tasks that reference them.
+  </Step>
+  
+  <Step title="Delete Categories">
+    After tasks are updated, safely delete the categories.
+  </Step>
+  
+  <Step title="Return Status">
+    Return success/failure status to the controller.
+  </Step>
+</Steps>
+
+## Timestamp Management
+
+The application automatically manages three types of timestamps:
+
+<CardGroup cols={3}>
+  <Card title="createdAt" icon="calendar-plus">
+    Set once when the task is created.
+    
+    ```javascript
+    createdAt: new Date().toISOString()
+    // "2026-03-11T10:30:00.000Z"
+    ```
+  </Card>
+  
+  <Card title="updatedAt" icon="calendar-edit">
+    Updated every time the task is modified.
+    
+    ```javascript
+    updatedAt: new Date().toISOString()
+    ```
+  </Card>
+  
+  <Card title="finishedAt" icon="calendar-check">
+    Set when a task is marked as completed.
+    
+    ```javascript
+    if (newCompleted === true) {
+      finishedAt: new Date().toISOString()
+    }
+    ```
+  </Card>
+</CardGroup>
+
+### Smart Completion Handling
+
+The Task model intelligently manages the `finishedAt` timestamp:
+
+<CodeGroup>
+```javascript src/models/task.js
+// Check if completed status is changing
+if ("completed" in cleanInputData) {
+  const newCompleted = cleanInputData.completed;
+  const oldCompleted = !!taskExists.completed;
+
+  // Task is being marked complete
+  if (oldCompleted === false && newCompleted === true) {
+    cleanInputData.finishedAt = new Date().toISOString();
+  }
+  
+  // Task is being marked incomplete
+  if (oldCompleted === true && newCompleted === false) {
+    delete taskExists.finishedAt;
+  }
+}
+```
+</CodeGroup>
+
+<Accordion title="Timestamp Logic Explanation">
+**Marking Task as Complete:**
+- When `completed` changes from `false` to `true`
+- Set `finishedAt` to current timestamp
+- Preserves the exact moment of completion
+
+**Marking Task as Incomplete:**
+- When `completed` changes from `true` to `false`
+- Delete the `finishedAt` field
+- Removes misleading completion timestamp
+
+**No Status Change:**
+- If `completed` stays the same
+- Don't modify `finishedAt`
+- Preserves original completion timestamp
+</Accordion>
+
+## Data Persistence
+
+db-local automatically handles data persistence:
+
+<Steps>
+  <Step title="In-Memory Operations">
+    Operations are performed in memory first for speed.
+  </Step>
+  
+  <Step title="Save to Disk">
+    Calling `.save()` writes changes to the JSON file.
+    
+    ```javascript
+    Tasks.create(newTask).save();
+    task.update(changes).save();
+    ```
+  </Step>
+  
+  <Step title="File Location">
+    Data is stored in JSON files at the configured path.
+    
+    ```
+    src/DB/tasks.json
+    src/DB/taskCategories.json
+    ```
+  </Step>
+</Steps>
+
+<Note>
+Every `.save()` call writes the entire collection to disk, so db-local is best suited for small to medium datasets. For large-scale applications, consider PostgreSQL, MongoDB, or MySQL.
+</Note>
+
+## File Structure
+
+The database files are organized as follows:
+
+```
+src/
+└── DB/
+    ├── DB_schemas.js          # Schema definitions
+    ├── tasks.json             # Task data (auto-generated)
+    └── taskCategories.json    # Category data (auto-generated)
+```
+
+<Info>
+The JSON files are auto-generated by db-local when you first save data. You should add them to `.gitignore` if you don't want to commit your development data.
+</Info>
+
+## Data Integrity
+
+### Type Validation
+
+Schemas enforce basic type validation:
+
+```javascript
+Schema('tasks', {
+  _id: { type: String, required: true },    // Must be string
+  title: { type: String, required: true },  // Must be string
+  completed: { type: Boolean, default: false } // Must be boolean
+});
+```
+
+<Note>
+While db-local provides basic type checking, the application uses **Zod** for comprehensive validation before data reaches the database layer.
+</Note>
+
+### Referential Integrity
+
+The application maintains referential integrity through application logic:
+
+<CodeGroup>
+```javascript Handling Category Deletion
+// Before deleting categories, update all referencing tasks
+await TaskModel.updateMany("categoryId", deletedCategoryIds, "uncategorized");
+
+// Now safe to delete categories
+await TaskCategoryModel.delete(deletedCategoryIds);
+```
+</CodeGroup>
+
+<Tip>
+Unlike relational databases, db-local doesn't enforce foreign key constraints. The application handles referential integrity in the service layer.
+</Tip>
+
+## Query Performance
+
+<CardGroup cols={2}>
+  <Card title="Small Datasets" icon="gauge-high">
+    db-local loads the entire collection into memory, making queries fast for small datasets (< 10,000 documents).
+  </Card>
+  
+  <Card title="Large Datasets" icon="gauge-low">
+    For larger datasets, consider migrating to a proper database with indexing and query optimization.
+  </Card>
+</CardGroup>
+
+## Migration Considerations
+
+When your application grows, you might need to migrate from db-local:
+
+<Accordion title="Migration Path">
+**Indicators You Need to Migrate:**
+- More than 10,000 records
+- Need for complex queries and joins
+- Multiple concurrent users
+- Need for transactions
+- Performance degradation
+
+**Migration Options:**
+1. **MongoDB**: Similar API to db-local, easier transition
+2. **PostgreSQL**: Powerful relational database with JSON support
+3. **MySQL**: Traditional relational database
+4. **SQLite**: File-based like db-local, but more powerful
+
+**Migration Strategy:**
+- Export data from JSON files
+- Create schema in new database
+- Import data
+- Update model layer to use new database client
+- Controllers and services remain mostly unchanged
+</Accordion>
+
+## Best Practices
+
+<Steps>
+  <Step title="Always Call .save()">
+    After `create()` or `update()`, always call `.save()` to persist changes.
+    
+    ```javascript
+    Tasks.create(newTask).save(); // ✅ Correct
+    Tasks.create(newTask);        // ❌ Not persisted
+    ```
+  </Step>
+  
+  <Step title="Use UUIDs for IDs">
+    Generate unique identifiers with `randomUUID()` instead of auto-incrementing numbers.
+  </Step>
+  
+  <Step title="Handle Timestamps">
+    Always set `createdAt` on creation and `updatedAt` on updates.
+  </Step>
+  
+  <Step title="Validate Before Saving">
+    Use Zod schemas to validate data before it reaches the database layer.
+  </Step>
+  
+  <Step title="Check Existence">
+    Before updates and deletes, check if the document exists.
+    
+    ```javascript
+    const task = await Tasks.findOne({ _id: taskId });
+    if (!task) return null;
+    ```
+  </Step>
+</Steps>
+
+## Example: Complete CRUD Flow
+
+Here's a complete example showing all CRUD operations:
+
+<CodeGroup>
+```javascript Complete CRUD Example
+import { randomUUID } from "node:crypto";
+import { Tasks } from "../DB/DB_schemas.js";
+
+// CREATE
+const newTask = {
+  _id: randomUUID(),
+  title: "Learn db-local",
+  description: "Understand the database layer",
+  completed: false,
+  createdAt: new Date().toISOString(),
+  categoryId: "learning"
+};
+Tasks.create(newTask).save();
+console.log("Created:", newTask);
+
+// READ
+const allTasks = await Tasks.find({});
+console.log("All tasks:", allTasks);
+
+const task = await Tasks.findOne({ _id: newTask._id });
+console.log("Single task:", task);
+
+// UPDATE
+await task.update({
+  completed: true,
+  finishedAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+}).save();
+console.log("Updated task");
+
+// DELETE
+Tasks.remove(newTask._id);
+console.log("Deleted task");
+```
+</CodeGroup>
+
+<Tip>
+This example demonstrates the complete lifecycle of a task document, from creation to deletion, showcasing all the database operations available in Task Manager.
+</Tip>

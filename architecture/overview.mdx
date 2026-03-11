@@ -1,0 +1,247 @@
+---
+title: 'Architecture Overview'
+description: 'High-level overview of the Task Manager architecture, technology stack, and project structure'
+icon: 'sitemap'
+---
+
+## Introduction
+
+Task Manager is a full-stack JavaScript application built with a clean separation between frontend and backend. The application follows a Model-View-Controller (MVC) pattern on both sides, providing a structured and maintainable codebase.
+
+<Note>
+The application uses **ES6 modules** throughout the codebase, as specified in `package.json` with `"type": "module"`.
+</Note>
+
+## Architecture Diagram
+
+The Task Manager follows a three-tier architecture:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     CLIENT TIER                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Browser (Vanilla JavaScript)                     │  │
+│  │  ┌────────────┐  ┌────────┐  ┌────────────────┐ │  │
+│  │  │Controllers │→ │ Views  │→ │   Services     │ │  │
+│  │  │   (MVC)    │  │ (DOM)  │  │ (API Client)   │ │  │
+│  │  └────────────┘  └────────┘  └────────────────┘ │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                           ↕ HTTP/JSON
+┌─────────────────────────────────────────────────────────┐
+│                    SERVER TIER                          │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Express.js Application                           │  │
+│  │  ┌──────────┐  ┌─────────────┐  ┌─────────────┐ │  │
+│  │  │  Routes  │→ │ Controllers │→ │   Models    │ │  │
+│  │  └──────────┘  └─────────────┘  └─────────────┘ │  │
+│  │       ↓              ↓                  ↓         │  │
+│  │  ┌──────────┐  ┌─────────────┐  ┌─────────────┐ │  │
+│  │  │Middleware│  │   Schemas   │  │  Services   │ │  │
+│  │  │  (CORS)  │  │    (Zod)    │  │ (Business)  │ │  │
+│  │  └──────────┘  └─────────────┘  └─────────────┘ │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                           ↕
+┌─────────────────────────────────────────────────────────┐
+│                    DATA TIER                            │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  db-local (File-based JSON Database)             │  │
+│  │  • tasks.json                                     │  │
+│  │  • taskCategories.json                            │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Technology Stack
+
+<CardGroup cols={2}>
+  <Card title="Backend" icon="server">
+    - **Runtime:** Node.js
+    - **Framework:** Express.js 5.1.0
+    - **Database:** db-local 3.1.0
+    - **Validation:** Zod 4.1.12
+    - **CORS:** cors 2.8.5
+    - **Environment:** dotenv 17.2.3
+  </Card>
+  
+  <Card title="Frontend" icon="window">
+    - **Language:** Vanilla JavaScript (ES6+)
+    - **Pattern:** MVC Architecture
+    - **Modules:** ES6 Modules
+    - **DOM:** Native Browser APIs
+    - **HTTP Client:** Fetch API
+  </Card>
+</CardGroup>
+
+### Key Dependencies
+
+<CodeGroup>
+```json package.json
+{
+  "name": "taskmanager",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "cors": "2.8.5",
+    "db-local": "3.1.0",
+    "dotenv": "17.2.3",
+    "express": "5.1.0",
+    "zod": "4.1.12"
+  }
+}
+```
+</CodeGroup>
+
+<Tip>
+The application uses minimal dependencies, focusing on lightweight libraries that provide essential functionality without bloat.
+</Tip>
+
+## Project Structure
+
+The project is organized into clear, logical directories that separate concerns:
+
+<Accordion title="Complete Folder Structure">
+```
+taskmanager/
+├── src/                        # Backend source code
+│   ├── DB/                     # Database configuration
+│   │   └── DB_schemas.js       # db-local schemas definition
+│   ├── controllers/            # Request handlers
+│   │   ├── task.js             # Task CRUD operations
+│   │   └── taskCategory.js     # Category CRUD operations
+│   ├── models/                 # Data access layer
+│   │   ├── task.js             # Task model
+│   │   └── taskCategory.js     # Category model
+│   ├── routes/                 # API route definitions
+│   │   ├── tasks.js            # Task endpoints
+│   │   └── taskCategories.js   # Category endpoints
+│   ├── schemas/                # Validation schemas
+│   │   ├── task.js             # Task validation with Zod
+│   │   └── taskCategory.js     # Category validation
+│   ├── services/               # Business logic layer
+│   │   └── taskCategory.js     # Category service logic
+│   ├── middlewares/            # Express middlewares
+│   │   └── cors.js             # CORS configuration
+│   └── index.js                # Application entry point
+│
+├── public/                     # Frontend static files
+│   ├── js/                     # Client-side JavaScript
+│   │   ├── controllers/        # Frontend controllers
+│   │   │   ├── App.js          # Main application controller
+│   │   │   ├── Task.js         # Task controller
+│   │   │   ├── TaskCategory.js # Category controller
+│   │   │   ├── Modal.js        # Modal controller
+│   │   │   └── Aside.js        # Aside panel controller
+│   │   ├── services/           # API client services
+│   │   │   ├── Task.js         # Task API service
+│   │   │   └── TaskCategory.js # Category API service
+│   │   ├── views/              # DOM rendering
+│   │   │   ├── Task.js         # Task view components
+│   │   │   └── TaskCategory.js # Category view components
+│   │   ├── utils/              # Helper functions
+│   │   │   ├── dinamicSelect.js
+│   │   │   ├── formatDate.js
+│   │   │   └── sortCollection.js
+│   │   ├── config.js           # API configuration
+│   │   └── main.js             # Frontend entry point
+│   ├── styles/                 # CSS stylesheets
+│   ├── assets/                 # Images and icons
+│   └── index.html              # Main HTML template
+│
+├── package.json                # Project dependencies
+├── package-lock.json           # Dependency lock file
+└── .gitignore                  # Git ignore rules
+```
+</Accordion>
+
+## Core Components
+
+<Steps>
+  <Step title="Backend Layer">
+    The Express.js server handles API requests, validates data with Zod, and persists information using db-local. It serves both API endpoints and static frontend files.
+    
+    **Key file:** `src/index.js:1`
+  </Step>
+  
+  <Step title="Frontend Layer">
+    Vanilla JavaScript with MVC pattern manages the user interface. Controllers handle events, Views render DOM elements, and Services communicate with the backend API.
+    
+    **Key file:** `public/js/main.js:1`
+  </Step>
+  
+  <Step title="Data Layer">
+    db-local provides a lightweight, file-based JSON database that stores tasks and categories. Each entity is defined with a schema and supports CRUD operations.
+    
+    **Key file:** `src/DB/DB_schemas.js:1`
+  </Step>
+</Steps>
+
+## Application Flow
+
+### Request/Response Cycle
+
+1. **User Interaction**: User interacts with the UI (clicks button, submits form)
+2. **Event Handling**: Frontend controller captures the event
+3. **API Call**: Service layer makes HTTP request to backend
+4. **Validation**: Zod schema validates incoming data
+5. **Business Logic**: Controller processes the request
+6. **Data Access**: Model interacts with db-local database
+7. **Response**: JSON data returned to frontend
+8. **UI Update**: View layer updates the DOM with new data
+
+<Info>
+The application follows RESTful principles for API design, using standard HTTP methods (GET, POST, PATCH, DELETE) and appropriate status codes.
+</Info>
+
+## Configuration
+
+### Environment Variables
+
+The application uses environment variables for configuration:
+
+```javascript
+// src/index.js:31
+const PORT = process.env.PORT ?? 3000;
+```
+
+### API Configuration
+
+```javascript
+// public/js/config.js:1
+export const API_URL = 'http://localhost:3000/api';
+export const FETCH_HEADER_TYPE = {'Content-Type': 'application/json'};
+```
+
+## Development Workflow
+
+<CodeGroup>
+```bash Development Server
+npm run dev
+# Starts server with --watch flag for auto-reload
+# Server runs on http://localhost:3000
+```
+
+```bash Install Dependencies
+npm install
+# Installs all required packages
+```
+</CodeGroup>
+
+## Next Steps
+
+Explore the detailed architecture documentation:
+
+<CardGroup cols={3}>
+  <Card title="Backend" icon="server" href="./backend">
+    Learn about Express.js setup, routing, controllers, models, and validation
+  </Card>
+  
+  <Card title="Frontend" icon="browser" href="./frontend">
+    Discover the MVC pattern implementation, controllers, views, and services
+  </Card>
+  
+  <Card title="Database" icon="database" href="./database">
+    Understand db-local setup, schemas, and data persistence
+  </Card>
+</CardGroup>

@@ -1,0 +1,578 @@
+---
+title: 'Update Category'
+api: 'PATCH /api/taskCategories/:id'
+description: 'Update an existing category name'
+---
+
+## Endpoint
+
+```
+PATCH /api/taskCategories/:id
+```
+
+Updates the name of an existing task category. All tasks assigned to this category will automatically reflect the updated name.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier (UUID) of the category to update.
+  
+  Example: `a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d`
+</ParamField>
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  The new category name.
+  
+  **Validation:**
+  - Minimum length: 2 characters
+  - Maximum length: 25 characters
+  - Automatically trimmed (whitespace removed)
+  
+  Example: `"Work Projects"`, `"Personal Tasks"`
+</ParamField>
+
+## Response
+
+Returns the updated category object.
+
+<ResponseField name="_id" type="string">
+  The category's unique identifier (unchanged).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The updated category name.
+</ResponseField>
+
+## Status Codes
+
+- **200 OK** - Category successfully updated
+- **400 Bad Request** - Validation failed (invalid name)
+- **404 Not Found** - No category exists with the provided ID
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X PATCH http://localhost:3000/api/taskCategories/a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Work Projects"}'
+```
+
+```javascript JavaScript Fetch
+const categoryId = 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d';
+
+const response = await fetch(
+  `http://localhost:3000/api/taskCategories/${categoryId}`,
+  {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Work Projects' })
+  }
+);
+
+if (response.ok) {
+  const updatedCategory = await response.json();
+  console.log('Category updated:', updatedCategory);
+}
+```
+
+```javascript JavaScript with Error Handling
+async function updateCategory(categoryId, newName) {
+  try {
+    const response = await fetch(
+      `http://localhost:3000/api/taskCategories/${categoryId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName })
+      }
+    );
+    
+    if (response.status === 404) {
+      console.error('Category not found');
+      return null;
+    }
+    
+    if (response.status === 400) {
+      const error = await response.json();
+      console.error('Validation error:', error);
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const updatedCategory = await response.json();
+    return updatedCategory;
+    
+  } catch (error) {
+    console.error('Error updating category:', error);
+    return null;
+  }
+}
+
+// Usage
+const updated = await updateCategory(
+  'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d',
+  'Work Projects'
+);
+
+if (updated) {
+  console.log(`Category renamed to: ${updated.name}`);
+}
+```
+
+</CodeGroup>
+
+### Request Examples
+
+<CodeGroup>
+
+```json Basic Update
+{
+  "name": "Work Projects"
+}
+```
+
+```json Another Example
+{
+  "name": "Personal Tasks"
+}
+```
+
+```json With Whitespace (Auto-trimmed)
+{
+  "name": "  Important  "
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 200 OK
+{
+  "_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "name": "Work Projects"
+}
+```
+
+```json 404 Not Found
+{
+  "message": "Category not found"
+}
+```
+
+```json 400 Bad Request
+{
+  "error": "Datos no validos o incompletos"
+}
+```
+
+</CodeGroup>
+
+## Validation Rules
+
+<Warning>
+  All validation is performed server-side using Zod schemas. Invalid requests will return detailed error messages.
+</Warning>
+
+| Field | Required | Type | Min | Max |
+|-------|----------|------|-----|-----|
+| name | ✓ | string | 2 | 25 |
+
+## Usage Notes
+
+<Info>
+  **ID Unchanged**: The category's `_id` remains the same after updating. All tasks assigned to this category will automatically have the updated category name when you fetch them.
+</Info>
+
+<Note>
+  **Task References**: Updating a category name does NOT require updating individual tasks. Since tasks reference categories by ID, the relationship is maintained automatically.
+</Note>
+
+<Tip>
+  **Whitespace Handling**: The API automatically trims whitespace, so `" Work "` becomes `"Work"`.
+</Tip>
+
+<Warning>
+  **Avoid Duplicates**: While not enforced by the API, avoid renaming a category to a name that already exists to prevent user confusion.
+</Warning>
+
+## Common Use Cases
+
+### Rename Category
+
+```javascript
+async function renameCategory(categoryId, newName) {
+  const response = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    }
+  );
+  
+  if (response.ok) {
+    const updated = await response.json();
+    console.log(`Category renamed to: ${updated.name}`);
+    return updated;
+  }
+  
+  return null;
+}
+```
+
+### Update with Duplicate Check
+
+```javascript
+async function updateCategoryWithDuplicateCheck(categoryId, newName) {
+  // First, check if another category with this name exists
+  const allCategoriesRes = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await allCategoriesRes.json();
+  
+  const duplicate = categories.find(
+    cat => cat._id !== categoryId && 
+           cat.name.toLowerCase() === newName.toLowerCase()
+  );
+  
+  if (duplicate) {
+    console.error('A category with this name already exists');
+    return null;
+  }
+  
+  // Proceed with update
+  const response = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    }
+  );
+  
+  if (response.ok) {
+    return await response.json();
+  }
+  
+  return null;
+}
+```
+
+### Capitalize Category Name
+
+```javascript
+async function capitalizeCategoryName(categoryId) {
+  // Get current category
+  const getResponse = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`
+  );
+  
+  if (!getResponse.ok) {
+    return null;
+  }
+  
+  const category = await getResponse.json();
+  
+  // Capitalize first letter of each word
+  const capitalizedName = category.name
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+  
+  // Update if different
+  if (capitalizedName !== category.name) {
+    const updateResponse = await fetch(
+      `http://localhost:3000/api/taskCategories/${categoryId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: capitalizedName })
+      }
+    );
+    
+    if (updateResponse.ok) {
+      return await updateResponse.json();
+    }
+  }
+  
+  return category;
+}
+```
+
+### Bulk Rename Categories
+
+```javascript
+async function renameCategoriesBulk(updates) {
+  // updates = [{ id: 'uuid', name: 'new name' }, ...]
+  const results = await Promise.all(
+    updates.map(async ({ id, name }) => {
+      const response = await fetch(
+        `http://localhost:3000/api/taskCategories/${id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        }
+      );
+      
+      return {
+        id,
+        success: response.ok,
+        category: response.ok ? await response.json() : null
+      };
+    })
+  );
+  
+  const successful = results.filter(r => r.success).length;
+  console.log(`Updated ${successful} of ${updates.length} categories`);
+  
+  return results;
+}
+
+// Usage
+await renameCategoriesBulk([
+  { id: 'uuid-1', name: 'Work Projects' },
+  { id: 'uuid-2', name: 'Personal Tasks' },
+  { id: 'uuid-3', name: 'Shopping List' }
+]);
+```
+
+## Integration Examples
+
+### React Edit Form
+
+```javascript
+import { useState, useEffect } from 'react';
+
+function EditCategoryForm({ categoryId, onUpdated }) {
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    async function fetchCategory() {
+      try {
+        const response = await fetch(
+          `http://localhost:3000/api/taskCategories/${categoryId}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Category not found');
+        }
+        
+        const category = await response.json();
+        setName(category.name);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchCategory();
+  }, [categoryId]);
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(
+        `http://localhost:3000/api/taskCategories/${categoryId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        }
+      );
+      
+      if (response.status === 400) {
+        setError('Invalid category name');
+        return;
+      }
+      
+      if (response.status === 404) {
+        setError('Category not found');
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to update category');
+      }
+      
+      const updated = await response.json();
+      onUpdated(updated);
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  if (loading) return <div>Loading...</div>;
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        minLength={2}
+        maxLength={25}
+        required
+      />
+      <button type="submit" disabled={saving}>
+        {saving ? 'Saving...' : 'Update Category'}
+      </button>
+      {error && <div style={{color: 'red'}}>{error}</div>}
+    </form>
+  );
+}
+```
+
+### Inline Edit Component
+
+```javascript
+function InlineEditCategory({ category, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(category.name);
+  
+  const handleSave = async () => {
+    if (name === category.name) {
+      setEditing(false);
+      return;
+    }
+    
+    const response = await fetch(
+      `http://localhost:3000/api/taskCategories/${category._id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      }
+    );
+    
+    if (response.ok) {
+      const updated = await response.json();
+      onUpdate(updated);
+      setEditing(false);
+    } else {
+      // Reset on error
+      setName(category.name);
+      alert('Failed to update category');
+    }
+  };
+  
+  const handleCancel = () => {
+    setName(category.name);
+    setEditing(false);
+  };
+  
+  if (editing) {
+    return (
+      <div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={handleSave}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') handleCancel();
+          }}
+          autoFocus
+        />
+      </div>
+    );
+  }
+  
+  return (
+    <div onClick={() => setEditing(true)}>
+      {category.name}
+    </div>
+  );
+}
+```
+
+## Validation
+
+### Client-Side Validation
+
+```javascript
+function validateCategoryName(name) {
+  if (!name || typeof name !== 'string') {
+    return { valid: false, error: 'Name is required and must be a string' };
+  }
+  
+  const trimmed = name.trim();
+  
+  if (trimmed.length < 2) {
+    return { valid: false, error: 'Name must be at least 2 characters' };
+  }
+  
+  if (trimmed.length > 25) {
+    return { valid: false, error: 'Name must be at most 25 characters' };
+  }
+  
+  return { valid: true, name: trimmed };
+}
+
+async function updateCategoryWithValidation(categoryId, newName) {
+  const validation = validateCategoryName(newName);
+  
+  if (!validation.valid) {
+    console.error('Validation error:', validation.error);
+    return null;
+  }
+  
+  const response = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: validation.name })
+    }
+  );
+  
+  if (response.ok) {
+    return await response.json();
+  }
+  
+  return null;
+}
+```
+
+## Best Practices
+
+<Tip>
+  **Check for Duplicates**: Before updating, check if another category with the same name exists to maintain unique category names.
+</Tip>
+
+<Tip>
+  **Optimistic Updates**: Update your UI immediately, then sync with the API. Revert if the API call fails.
+</Tip>
+
+<Tip>
+  **Preserve User Input**: If validation fails, preserve the user's input and show an error message rather than silently failing or resetting the form.
+</Tip>
+
+<Warning>
+  **Don't Rename to "uncategorized"**: Avoid renaming categories to "uncategorized" as this is a reserved system value.
+</Warning>
+
+## Related Endpoints
+
+- [Get Category by ID](/api/categories/get-by-id) - Retrieve current category state
+- [Create Category](/api/categories/create) - Create a new category
+- [Delete Categories](/api/categories/delete) - Remove categories
+- [Get All Categories](/api/categories/get-all) - List all categories

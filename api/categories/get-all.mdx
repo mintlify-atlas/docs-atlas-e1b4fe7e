@@ -1,0 +1,398 @@
+---
+title: 'Get All Categories'
+api: 'GET /api/taskCategories'
+description: 'Retrieve a list of all task categories'
+---
+
+## Endpoint
+
+```
+GET /api/taskCategories
+```
+
+Retrieves all task categories from the database. Returns an array of category objects with their IDs and names.
+
+## Query Parameters
+
+This endpoint does not support query parameters. All categories are returned in a single response.
+
+## Response
+
+<ResponseField name="response" type="array">
+  An array of TaskCategory objects. Returns an empty array `[]` if no categories exist.
+</ResponseField>
+
+<Expandable title="TaskCategory Object Properties">
+
+<ResponseField name="_id" type="string">
+  Unique identifier (UUID v4) of the category.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The category name (2-25 characters).
+</ResponseField>
+
+</Expandable>
+
+## Status Codes
+
+- **200 OK** - Successfully retrieved all categories
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:3000/api/taskCategories
+```
+
+```javascript JavaScript Fetch
+const response = await fetch('http://localhost:3000/api/taskCategories');
+const categories = await response.json();
+console.log(categories);
+```
+
+```javascript JavaScript with Error Handling
+try {
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  const categories = await response.json();
+  console.log(`Retrieved ${categories.length} categories`);
+  
+  // Display category names
+  categories.forEach(category => {
+    console.log(`- ${category.name} (${category._id})`);
+  });
+  
+} catch (error) {
+  console.error('Error fetching categories:', error);
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 200 OK - Multiple Categories
+[
+  {
+    "_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "name": "Work"
+  },
+  {
+    "_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+    "name": "Personal"
+  },
+  {
+    "_id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+    "name": "Shopping"
+  },
+  {
+    "_id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+    "name": "Health"
+  }
+]
+```
+
+```json 200 OK - Empty
+[]
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+<Info>
+  This endpoint returns all categories without pagination. For most task management applications, the number of categories is typically small, making pagination unnecessary.
+</Info>
+
+<Note>
+  The special `"uncategorized"` value used in tasks is NOT a category object and will not appear in this list. It's a string literal used as a default value for tasks without category assignments.
+</Note>
+
+## Common Use Cases
+
+### Populate Category Dropdown
+
+```javascript
+async function loadCategoryDropdown(selectElement) {
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  // Clear existing options
+  selectElement.innerHTML = '';
+  
+  // Add uncategorized option
+  const uncategorizedOption = document.createElement('option');
+  uncategorizedOption.value = 'uncategorized';
+  uncategorizedOption.textContent = 'Uncategorized';
+  selectElement.appendChild(uncategorizedOption);
+  
+  // Add category options
+  categories.forEach(category => {
+    const option = document.createElement('option');
+    option.value = category._id;
+    option.textContent = category.name;
+    selectElement.appendChild(option);
+  });
+}
+```
+
+### Get Category by Name
+
+```javascript
+async function findCategoryByName(name) {
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  return categories.find(cat => 
+    cat.name.toLowerCase() === name.toLowerCase()
+  );
+}
+
+// Usage
+const workCategory = await findCategoryByName('Work');
+if (workCategory) {
+  console.log('Work category ID:', workCategory._id);
+}
+```
+
+### Check if Category Exists
+
+```javascript
+async function categoryExists(name) {
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  return categories.some(cat => 
+    cat.name.toLowerCase() === name.toLowerCase()
+  );
+}
+
+// Usage
+if (await categoryExists('Work')) {
+  console.log('Work category already exists');
+} else {
+  // Create it
+}
+```
+
+### Sort Categories Alphabetically
+
+```javascript
+const response = await fetch('http://localhost:3000/api/taskCategories');
+const categories = await response.json();
+
+// Sort by name
+const sortedCategories = categories.sort((a, b) => 
+  a.name.localeCompare(b.name)
+);
+
+console.log('Categories:', sortedCategories.map(c => c.name).join(', '));
+```
+
+### Get Tasks Count per Category
+
+```javascript
+async function getCategoriesWithTaskCount() {
+  // Fetch both categories and tasks
+  const [categoriesRes, tasksRes] = await Promise.all([
+    fetch('http://localhost:3000/api/taskCategories'),
+    fetch('http://localhost:3000/api/tasks')
+  ]);
+  
+  const categories = await categoriesRes.json();
+  const tasks = await tasksRes.json();
+  
+  // Count tasks per category
+  const categoriesWithCount = categories.map(category => ({
+    ...category,
+    taskCount: tasks.filter(task => task.categoryId === category._id).length
+  }));
+  
+  // Add uncategorized count
+  const uncategorizedCount = tasks.filter(
+    task => task.categoryId === 'uncategorized'
+  ).length;
+  
+  return {
+    categories: categoriesWithCount,
+    uncategorized: uncategorizedCount
+  };
+}
+
+// Usage
+const data = await getCategoriesWithTaskCount();
+data.categories.forEach(cat => {
+  console.log(`${cat.name}: ${cat.taskCount} tasks`);
+});
+console.log(`Uncategorized: ${data.uncategorized} tasks`);
+```
+
+### Build Category Map for Quick Lookup
+
+```javascript
+async function buildCategoryMap() {
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  // Create a Map for O(1) lookup
+  const categoryMap = new Map();
+  categories.forEach(category => {
+    categoryMap.set(category._id, category.name);
+  });
+  
+  return categoryMap;
+}
+
+// Usage
+const categoryMap = await buildCategoryMap();
+const categoryName = categoryMap.get('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d');
+console.log('Category name:', categoryName);
+```
+
+### Display Category List with Colors
+
+```javascript
+async function displayCategoriesWithColors() {
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  // Assign colors (you might store these in localStorage or a database)
+  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'];
+  
+  const categoriesWithColors = categories.map((category, index) => ({
+    ...category,
+    color: colors[index % colors.length]
+  }));
+  
+  return categoriesWithColors;
+}
+```
+
+## Integration Examples
+
+### React Component
+
+```javascript
+import { useState, useEffect } from 'react';
+
+function CategoryList() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const response = await fetch('http://localhost:3000/api/taskCategories');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch categories');
+        }
+        
+        const data = await response.json();
+        setCategories(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchCategories();
+  }, []);
+  
+  if (loading) return <div>Loading categories...</div>;
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <ul>
+      {categories.map(category => (
+        <li key={category._id}>{category.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Vue Component
+
+```javascript
+export default {
+  data() {
+    return {
+      categories: [],
+      loading: true,
+      error: null
+    };
+  },
+  async mounted() {
+    try {
+      const response = await fetch('http://localhost:3000/api/taskCategories');
+      this.categories = await response.json();
+    } catch (error) {
+      this.error = error.message;
+    } finally {
+      this.loading = false;
+    }
+  }
+};
+```
+
+## Caching Strategies
+
+```javascript
+// Simple in-memory cache with expiration
+const categoryCache = {
+  data: null,
+  timestamp: null,
+  ttl: 5 * 60 * 1000 // 5 minutes
+};
+
+async function getCategoriesWithCache() {
+  const now = Date.now();
+  
+  // Return cached data if still valid
+  if (categoryCache.data && 
+      categoryCache.timestamp && 
+      now - categoryCache.timestamp < categoryCache.ttl) {
+    console.log('Returning cached categories');
+    return categoryCache.data;
+  }
+  
+  // Fetch fresh data
+  console.log('Fetching fresh categories');
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  // Update cache
+  categoryCache.data = categories;
+  categoryCache.timestamp = now;
+  
+  return categories;
+}
+```
+
+## Performance Tips
+
+<Tip>
+  **Cache Categories**: Since categories don't change frequently, consider caching them in memory or localStorage to reduce API calls.
+</Tip>
+
+<Tip>
+  **Fetch in Parallel**: When loading a page that needs both tasks and categories, fetch them in parallel using `Promise.all()` for better performance.
+</Tip>
+
+## Related Endpoints
+
+- [Get Category by ID](/api/categories/get-by-id) - Retrieve a specific category
+- [Create Category](/api/categories/create) - Create a new category
+- [Update Category](/api/categories/update) - Modify a category name
+- [Delete Categories](/api/categories/delete) - Remove one or more categories

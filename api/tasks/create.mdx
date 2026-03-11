@@ -1,0 +1,397 @@
+---
+title: 'Create Task'
+api: 'POST /api/tasks'
+description: 'Create a new task'
+---
+
+## Endpoint
+
+```
+POST /api/tasks
+```
+
+Creates a new task in the system. The API automatically generates a UUID, sets the creation timestamp, and assigns default values for optional fields.
+
+## Request Body
+
+<ParamField body="title" type="string" required>
+  The task title.
+  
+  **Validation:**
+  - Minimum length: 3 characters
+  - Maximum length: 25 characters
+  - Automatically trimmed
+  
+  Example: `"Complete API documentation"`
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional detailed description of the task.
+  
+  **Validation:**
+  - Maximum length: 25 characters
+  - Automatically trimmed
+  
+  Example: `"Write comprehensive docs"`
+</ParamField>
+
+<ParamField body="completed" type="boolean" default="false">
+  Initial completion status of the task.
+  
+  **Default:** `false`
+  
+  **Note:** If set to `true`, the `finishedAt` timestamp will be automatically set.
+  
+  Example: `true`
+</ParamField>
+
+<ParamField body="categoryId" type="string" default="uncategorized">
+  The UUID of the category to assign this task to.
+  
+  **Default:** `"uncategorized"` (if not provided or empty string)
+  
+  **Validation:** No format validation on input, but should be a valid TaskCategory UUID
+  
+  Example: `"550e8400-e29b-41d4-a716-446655440000"`
+</ParamField>
+
+## Response
+
+Returns the newly created task object with all auto-generated fields.
+
+<ResponseField name="_id" type="string">
+  Auto-generated unique identifier (UUID v4).
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The task title from the request.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The task description from the request (if provided).
+</ResponseField>
+
+<ResponseField name="completed" type="boolean">
+  The completion status from the request or default value.
+</ResponseField>
+
+<ResponseField name="categoryId" type="string">
+  The category ID from the request or `"uncategorized"`.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  Auto-generated ISO 8601 timestamp of creation.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  Not set on creation (only appears after first update).
+</ResponseField>
+
+<ResponseField name="finishedAt" type="string">
+  Auto-generated ISO 8601 timestamp if `completed` is `true`, otherwise not present.
+</ResponseField>
+
+## Status Codes
+
+- **201 Created** - Task successfully created
+- **400 Bad Request** - Validation failed (invalid or missing required fields)
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL - Minimal
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Complete documentation"}'
+```
+
+```bash cURL - Complete
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title":"Write API documentation",
+    "description":"Create comprehensive docs",
+    "completed":false,
+    "categoryId":"550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+```javascript JavaScript - Minimal
+const response = await fetch('http://localhost:3000/api/tasks', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    title: 'Complete documentation'
+  })
+});
+
+const newTask = await response.json();
+console.log('Created task:', newTask._id);
+```
+
+```javascript JavaScript - Complete
+const response = await fetch('http://localhost:3000/api/tasks', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    title: 'Write API documentation',
+    description: 'Create comprehensive docs',
+    completed: false,
+    categoryId: '550e8400-e29b-41d4-a716-446655440000'
+  })
+});
+
+if (response.status === 201) {
+  const newTask = await response.json();
+  console.log('Task created successfully:', newTask);
+} else if (response.status === 400) {
+  const error = await response.json();
+  console.error('Validation error:', error);
+}
+```
+
+```javascript JavaScript - With Error Handling
+async function createTask(taskData) {
+  try {
+    const response = await fetch('http://localhost:3000/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskData)
+    });
+    
+    if (response.status === 400) {
+      const error = await response.json();
+      console.error('Validation failed:', error);
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const newTask = await response.json();
+    return newTask;
+    
+  } catch (error) {
+    console.error('Error creating task:', error);
+    return null;
+  }
+}
+
+// Usage
+const task = await createTask({
+  title: 'Buy groceries',
+  description: 'Milk, eggs, bread',
+  categoryId: 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
+});
+
+if (task) {
+  console.log(`Created task ${task._id}: ${task.title}`);
+}
+```
+
+</CodeGroup>
+
+### Request Examples
+
+<CodeGroup>
+
+```json Minimal Request
+{
+  "title": "Complete documentation"
+}
+```
+
+```json Request with Description
+{
+  "title": "Write API documentation",
+  "description": "Create comprehensive docs"
+}
+```
+
+```json Request with Category
+{
+  "title": "Review pull request",
+  "description": "Check code quality",
+  "categoryId": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+```json Request Already Completed
+{
+  "title": "Setup development env",
+  "description": "Install dependencies",
+  "completed": true,
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 201 Created - Pending Task
+{
+  "_id": "d4c3b2a1-0f1e-4d3c-9b8a-7c6b5a4d3e2f",
+  "title": "Write API documentation",
+  "description": "Create comprehensive docs",
+  "completed": false,
+  "categoryId": "550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2026-03-11T12:00:00.000Z"
+}
+```
+
+```json 201 Created - Completed Task
+{
+  "_id": "f1e2d3c4-b5a6-4978-8c9d-0a1b2c3d4e5f",
+  "title": "Setup development env",
+  "description": "Install dependencies",
+  "completed": true,
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "createdAt": "2026-03-11T12:00:00.000Z",
+  "finishedAt": "2026-03-11T12:00:00.000Z"
+}
+```
+
+```json 201 Created - Uncategorized
+{
+  "_id": "a1a2a3a4-b5b6-4c7c-8d9d-0e1f2a3b4c5d",
+  "title": "Buy groceries",
+  "completed": false,
+  "categoryId": "uncategorized",
+  "createdAt": "2026-03-11T12:00:00.000Z"
+}
+```
+
+```json 400 Bad Request - Title Too Short
+{
+  "error": [
+    {
+      "code": "too_small",
+      "minimum": 3,
+      "type": "string",
+      "inclusive": true,
+      "exact": false,
+      "message": "String must contain at least 3 character(s)",
+      "path": ["title"]
+    }
+  ]
+}
+```
+
+```json 400 Bad Request - Title Too Long
+{
+  "error": [
+    {
+      "code": "too_big",
+      "maximum": 25,
+      "type": "string",
+      "inclusive": true,
+      "exact": false,
+      "message": "String must contain at most 25 character(s)",
+      "path": ["title"]
+    }
+  ]
+}
+```
+
+```json 400 Bad Request - Missing Title
+{
+  "error": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "undefined",
+      "path": ["title"],
+      "message": "Required"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Validation Rules
+
+<Warning>
+  All validation is performed server-side using Zod schemas. Invalid requests will return detailed error messages.
+</Warning>
+
+| Field | Required | Type | Min | Max | Default |
+|-------|----------|------|-----|-----|----------|
+| title | ✓ | string | 3 | 25 | - |
+| description | ✗ | string | - | 25 | - |
+| completed | ✗ | boolean | - | - | false |
+| categoryId | ✗ | string | - | - | "uncategorized" |
+
+## Usage Notes
+
+<Info>
+  **Auto-Generated Fields**: Never include `_id`, `createdAt`, `updatedAt`, or `finishedAt` in your request body. These are managed automatically by the API.
+</Info>
+
+<Tip>
+  **Creating Completed Tasks**: If you're importing historical data or creating tasks that are already done, set `completed: true` in your request. The API will automatically set the `finishedAt` timestamp to match `createdAt`.
+</Tip>
+
+<Note>
+  **Category Assignment**: The API does not validate whether the `categoryId` you provide actually exists. Ensure you're using valid category UUIDs from the `/api/taskCategories` endpoint.
+</Note>
+
+## Common Patterns
+
+### Create Task in Existing Category
+
+```javascript
+// First, get or create a category
+const categoryResponse = await fetch('http://localhost:3000/api/taskCategories', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Work' })
+});
+const category = await categoryResponse.json();
+
+// Then create task in that category
+const taskResponse = await fetch('http://localhost:3000/api/tasks', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    title: 'Review code',
+    categoryId: category._id
+  })
+});
+const task = await taskResponse.json();
+```
+
+### Bulk Create Tasks
+
+```javascript
+const tasksToCreate = [
+  { title: 'Task 1', description: 'First task' },
+  { title: 'Task 2', description: 'Second task' },
+  { title: 'Task 3', description: 'Third task' }
+];
+
+const createdTasks = await Promise.all(
+  tasksToCreate.map(async (taskData) => {
+    const response = await fetch('http://localhost:3000/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskData)
+    });
+    return response.json();
+  })
+);
+
+console.log(`Created ${createdTasks.length} tasks`);
+```
+
+## Related Endpoints
+
+- [Get All Tasks](/api/tasks/get-all) - List all tasks
+- [Update Task](/api/tasks/update) - Modify a task
+- [Delete Task](/api/tasks/delete) - Remove a task
+- [Create Category](/api/categories/create) - Create a category for organization

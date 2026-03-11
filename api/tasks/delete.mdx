@@ -1,0 +1,381 @@
+---
+title: 'Delete Task'
+api: 'DELETE /api/tasks/:id'
+description: 'Permanently delete a task'
+---
+
+## Endpoint
+
+```
+DELETE /api/tasks/:id
+```
+
+Permanently deletes a task from the system. This operation cannot be undone.
+
+<Warning>
+  This operation is permanent and cannot be reversed. Make sure you want to delete the task before calling this endpoint.
+</Warning>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier (UUID) of the task to delete.
+  
+  Example: `550e8400-e29b-41d4-a716-446655440000`
+</ParamField>
+
+## Response
+
+On successful deletion, this endpoint returns no response body (204 No Content).
+
+## Status Codes
+
+- **204 No Content** - Task successfully deleted (no response body)
+- **404 Not Found** - No task exists with the provided ID
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE http://localhost:3000/api/tasks/550e8400-e29b-41d4-a716-446655440000
+```
+
+```javascript JavaScript Fetch
+const taskId = '550e8400-e29b-41d4-a716-446655440000';
+
+const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+  method: 'DELETE'
+});
+
+if (response.status === 204) {
+  console.log('Task deleted successfully');
+} else if (response.status === 404) {
+  console.log('Task not found');
+}
+```
+
+```javascript JavaScript with Error Handling
+async function deleteTask(taskId) {
+  try {
+    const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.status === 204) {
+      console.log('Task deleted successfully');
+      return true;
+    }
+    
+    if (response.status === 404) {
+      console.error('Task not found');
+      return false;
+    }
+    
+    throw new Error(`Unexpected status: ${response.status}`);
+    
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    return false;
+  }
+}
+
+// Usage
+const success = await deleteTask('550e8400-e29b-41d4-a716-446655440000');
+if (success) {
+  // Update UI to remove the task
+}
+```
+
+```javascript JavaScript with Confirmation
+async function deleteTaskWithConfirmation(taskId) {
+  // First, get the task to show details in confirmation
+  const getResponse = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+  
+  if (!getResponse.ok) {
+    console.error('Task not found');
+    return false;
+  }
+  
+  const task = await getResponse.json();
+  
+  // Show confirmation (in a real app, use a proper UI dialog)
+  const confirmed = confirm(
+    `Are you sure you want to delete "${task.title}"?`
+  );
+  
+  if (!confirmed) {
+    console.log('Deletion cancelled');
+    return false;
+  }
+  
+  // Proceed with deletion
+  const deleteResponse = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'DELETE'
+  });
+  
+  if (deleteResponse.status === 204) {
+    console.log('Task deleted successfully');
+    return true;
+  }
+  
+  return false;
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```text 204 No Content
+(No response body)
+```
+
+```json 404 Not Found
+{
+  "message": "Task not found"
+}
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+<Info>
+  **No Response Body**: When deletion is successful (204), there is no response body. Do not try to parse JSON from the response.
+</Info>
+
+<Warning>
+  **Permanent Deletion**: This operation permanently removes the task from the database. Consider implementing a "soft delete" or "archive" feature in your application if you need to recover deleted tasks.
+</Warning>
+
+<Note>
+  **Idempotency**: Attempting to delete a task that doesn't exist returns 404. Calling this endpoint multiple times with the same ID will return 404 on subsequent calls after the first successful deletion.
+</Note>
+
+## Common Use Cases
+
+### Delete with User Confirmation
+
+```javascript
+async function safeDeleteTask(taskId, taskTitle) {
+  if (!confirm(`Delete "${taskTitle}"? This cannot be undone.`)) {
+    return false;
+  }
+  
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'DELETE'
+  });
+  
+  return response.status === 204;
+}
+```
+
+### Bulk Delete Tasks
+
+```javascript
+async function deleteTasks(taskIds) {
+  const results = await Promise.all(
+    taskIds.map(async (taskId) => {
+      const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+      return {
+        taskId,
+        success: response.status === 204,
+        notFound: response.status === 404
+      };
+    })
+  );
+  
+  const successful = results.filter(r => r.success).length;
+  const notFound = results.filter(r => r.notFound).length;
+  
+  console.log(`Deleted: ${successful}, Not found: ${notFound}`);
+  return results;
+}
+
+// Usage
+await deleteTasks([
+  '550e8400-e29b-41d4-a716-446655440000',
+  'd4c3b2a1-0f1e-4d3c-9b8a-7c6b5a4d3e2f',
+  'f1e2d3c4-b5a6-4978-8c9d-0a1b2c3d4e5f'
+]);
+```
+
+### Delete All Completed Tasks
+
+```javascript
+async function deleteCompletedTasks() {
+  // Get all tasks
+  const response = await fetch('http://localhost:3000/api/tasks');
+  const tasks = await response.json();
+  
+  // Filter completed tasks
+  const completedTasks = tasks.filter(task => task.completed === true);
+  
+  console.log(`Found ${completedTasks.length} completed tasks to delete`);
+  
+  // Delete them
+  const results = await Promise.all(
+    completedTasks.map(async (task) => {
+      const deleteResponse = await fetch(
+        `http://localhost:3000/api/tasks/${task._id}`,
+        { method: 'DELETE' }
+      );
+      return deleteResponse.status === 204;
+    })
+  );
+  
+  const successCount = results.filter(r => r).length;
+  console.log(`Deleted ${successCount} completed tasks`);
+  
+  return successCount;
+}
+```
+
+### Delete with Undo Option (Archive Pattern)
+
+```javascript
+// Instead of immediate deletion, mark as archived first
+const archivedTasks = [];
+
+async function archiveTask(taskId) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+  const task = await response.json();
+  
+  // Store in archive with timestamp
+  archivedTasks.push({
+    task,
+    archivedAt: Date.now()
+  });
+  
+  // Actually delete from API
+  await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'DELETE'
+  });
+  
+  // Set timeout to permanently forget after 30 seconds
+  setTimeout(() => {
+    const index = archivedTasks.findIndex(a => a.task._id === taskId);
+    if (index !== -1) {
+      archivedTasks.splice(index, 1);
+    }
+  }, 30000);
+  
+  console.log('Task archived. You have 30 seconds to undo.');
+}
+
+async function undoDelete(taskId) {
+  const archived = archivedTasks.find(a => a.task._id === taskId);
+  
+  if (!archived) {
+    console.error('Cannot undo: task not found in archive');
+    return false;
+  }
+  
+  // Recreate the task (without the _id, let API generate new one)
+  const { _id, createdAt, updatedAt, finishedAt, ...taskData } = archived.task;
+  
+  const response = await fetch('http://localhost:3000/api/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(taskData)
+  });
+  
+  if (response.status === 201) {
+    // Remove from archive
+    const index = archivedTasks.findIndex(a => a.task._id === taskId);
+    archivedTasks.splice(index, 1);
+    console.log('Task restored');
+    return true;
+  }
+  
+  return false;
+}
+```
+
+## Error Handling
+
+### Handling 404 Errors
+
+```javascript
+async function deleteTaskSafely(taskId) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'DELETE'
+  });
+  
+  if (response.status === 204) {
+    return { success: true, message: 'Task deleted' };
+  }
+  
+  if (response.status === 404) {
+    return { success: false, message: 'Task not found' };
+  }
+  
+  return { success: false, message: 'Unknown error' };
+}
+```
+
+### Network Error Handling
+
+```javascript
+async function deleteTaskWithRetry(taskId, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.status === 204) {
+        return { success: true };
+      }
+      
+      if (response.status === 404) {
+        return { success: false, error: 'not_found' };
+      }
+      
+      // Other error, may retry
+      if (attempt < maxRetries) {
+        console.log(`Attempt ${attempt} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+      
+      return { success: false, error: 'server_error' };
+      
+    } catch (error) {
+      if (attempt < maxRetries) {
+        console.log(`Network error on attempt ${attempt}, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+      
+      return { success: false, error: 'network_error', details: error };
+    }
+  }
+}
+```
+
+## Best Practices
+
+<Tip>
+  **Always Confirm Destructive Actions**: Implement user confirmation before deleting tasks, especially in production applications.
+</Tip>
+
+<Tip>
+  **Update UI Optimistically**: Remove the task from the UI immediately, then handle errors if the API call fails by restoring it.
+</Tip>
+
+<Tip>
+  **Consider Soft Deletes**: For important data, implement a "soft delete" pattern where tasks are marked as deleted but not actually removed from the database.
+</Tip>
+
+## Related Endpoints
+
+- [Get All Tasks](/api/tasks/get-all) - List all tasks
+- [Get Task by ID](/api/tasks/get-by-id) - Verify task exists before deletion
+- [Update Task](/api/tasks/update) - Modify instead of deleting
+- [Create Task](/api/tasks/create) - Create a new task

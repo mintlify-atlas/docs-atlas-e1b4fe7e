@@ -1,0 +1,360 @@
+---
+title: 'Task Management'
+description: 'Complete guide to task CRUD operations, completion tracking, timestamps, and validation'
+icon: 'list-check'
+---
+
+## Overview
+
+The Task Manager application provides robust task management capabilities with automatic timestamp tracking, completion status management, and comprehensive validation. Tasks support full CRUD operations with proper state management and data integrity.
+
+## Task Data Model
+
+Each task contains the following properties:
+
+<AccordionGroup>
+  <Accordion title="Core Fields">
+    - **_id**: Unique identifier (UUID)
+    - **title**: Task title (3-25 characters, required)
+    - **description**: Task description (max 25 characters, optional)
+    - **categoryId**: Associated category UUID (optional)
+    - **completed**: Boolean completion status
+  </Accordion>
+  
+  <Accordion title="Timestamp Fields">
+    - **createdAt**: ISO 8601 timestamp when task was created
+    - **updatedAt**: ISO 8601 timestamp of last modification
+    - **finishedAt**: ISO 8601 timestamp when task was marked as completed
+  </Accordion>
+</AccordionGroup>
+
+## Creating Tasks
+
+### Backend Implementation
+
+Tasks are created with automatic UUID generation and timestamp initialization:
+
+```javascript ~/workspace/source/src/models/task.js
+import { randomUUID } from "node:crypto";
+import { Tasks } from "../DB/DB_schemas.js";
+
+export class TaskModel {
+  static create({ input }) {
+    const newTask = {
+      _id: randomUUID(),
+      title: input.title,
+      description: input.description,
+      categoryId: input.categoryId,
+      createdAt: new Date().toISOString(),
+      completed: input.completed,
+    };
+    Tasks.create(newTask).save();
+    return newTask;
+  }
+}
+```
+
+### Input Validation
+
+All task data is validated using Zod schemas before processing:
+
+```javascript ~/workspace/source/src/schemas/task.js
+import z from 'zod';
+
+const taskSchema = z.object({
+  title: z.string().min(3).max(25),
+  description: z.string().max(25).optional(),
+  completed: z.boolean().optional(),
+  categoryId: z.string().optional(),
+  createdAt: z.string().optional().refine(v => !v || !isNaN(Date.parse(v)), {
+    message: "Invalid date format createAt"
+  }),
+  updatedAt: z.string().optional().refine(v => !v || !isNaN(Date.parse(v)), {
+    message: "Invalid date format updateAt"
+  }),
+  finishedAt: z.string().optional().refine(v => !v || !isNaN(Date.parse(v)), {
+    message: "Invalid date format finishedAt"
+  })
+});
+
+export function validateTask(input) {
+  return taskSchema.safeParse(input);
+}
+
+export function validatePartialTask(input) {
+  return taskSchema.partial().safeParse(input);
+}
+```
+
+<Note>
+  The validation ensures title length between 3-25 characters and validates all timestamp fields as valid ISO 8601 date strings.
+</Note>
+
+### API Endpoint
+
+The controller handles validation and responds with appropriate status codes:
+
+```javascript ~/workspace/source/src/controllers/task.js
+import { TaskModel } from "../models/task.js";
+import { validateTask } from "../schemas/task.js";
+
+export class TaskController {
+  static async create(req, res) {
+    const validate = validateTask(req.body);
+    if (validate.error) {
+      res.status(400).json(validate.error);
+    }
+    const newTask = TaskModel.create({ input: validate.data });
+    res.status(201).json(newTask);
+  }
+}
+```
+
+## Updating Tasks
+
+### Automatic Timestamp Management
+
+The update operation intelligently manages timestamps:
+
+<Steps>
+  <Step title="Validate Task Exists">
+    Check if the task exists before attempting updates
+  </Step>
+  
+  <Step title="Clean Input Data">
+    Remove undefined fields to prevent overwriting existing data
+  </Step>
+  
+  <Step title="Update Timestamp">
+    Automatically set `updatedAt` to current time
+  </Step>
+  
+  <Step title="Manage Completion Status">
+    Handle `finishedAt` timestamp based on completion state changes
+  </Step>
+</Steps>
+
+### Smart Completion Tracking
+
+```javascript ~/workspace/source/src/models/task.js
+static async update(taskId, input) {
+  const taskExists = await this.getById(taskId);
+  if (!taskExists) {
+    return null;
+  }
+
+  // Extract and filter undefined values
+  const { title, description, categoryId, completed, createdAt, updatedAt, finishedAt } = input;
+  const inputData = { title, description, categoryId, completed, createdAt, updatedAt, finishedAt };
+  
+  const cleanInputData = Object.fromEntries(
+    Object.entries(inputData).filter(([_, value]) => value !== undefined)
+  );
+  
+  // Always add updatedAt
+  cleanInputData.updatedAt = new Date().toISOString();
+
+  // Handle completion status changes
+  if ("completed" in cleanInputData) {
+    const newCompleted = cleanInputData.completed;
+    const oldCompleted = !!taskExists.completed;
+
+    if (oldCompleted === false && newCompleted === true) {
+      // Task just completed - set finishedAt
+      cleanInputData.finishedAt = new Date().toISOString();
+    }
+    if (oldCompleted === true && newCompleted === false) {
+      // Task uncompleted - remove finishedAt
+      delete taskExists.finishedAt;
+    }
+  }
+
+  await taskExists.update(cleanInputData).save();
+  const fullTask = await this.getById(taskId);
+  return fullTask;
+}
+```
+
+<Info>
+  The `finishedAt` timestamp is automatically set when a task transitions from incomplete to complete, and removed when uncompleted.
+</Info>
+
+### Partial Updates
+
+The API supports PATCH requests for partial updates:
+
+```javascript ~/workspace/source/src/controllers/task.js
+static async update(req, res) {
+  const validate = validatePartialTask(req.body);
+  if (validate.error) {
+    res.status(400).json({ error: "Datos no validos o incompletos" });
+  }
+
+  const { id } = req.params;
+  const updatedTask = await TaskModel.update(id, validate.data);
+  if (!updatedTask) {
+    res.status(404).json({ message: "Task not found" });
+  }
+  res.status(200).json(updatedTask);
+}
+```
+
+## Reading Tasks
+
+### Get All Tasks
+
+Retrieve all tasks with optional filtering:
+
+```javascript ~/workspace/source/src/models/task.js
+static async getAll(filters = {}) {
+  const query = {};
+  if (filters.categoryId) {
+    query.categoryId = filters.categoryId;
+  }
+  return await Tasks.find(filters);
+}
+```
+
+### Get Task by ID
+
+```javascript ~/workspace/source/src/models/task.js
+static async getById(taskId) {
+  return await Tasks.findOne({ _id: taskId });
+}
+```
+
+<CodeGroup>
+```javascript Controller - Get All
+static async getAll(req, res) {
+  const tasks = await TaskModel.getAll();
+  res.status(200).json(tasks);
+}
+```
+
+```javascript Controller - Get by ID
+static async getById(req, res) {
+  const { id } = req.params;
+  const task = await TaskModel.getById(id);
+  if (!task) {
+    res.status(404).json({ message: "Task not found" });
+  }
+  res.status(200).json(task);
+}
+```
+</CodeGroup>
+
+## Deleting Tasks
+
+```javascript ~/workspace/source/src/models/task.js
+static async delete(taskId) {
+  const taskExists = await this.getById(taskId);
+  if (!taskExists) {
+    return false;
+  }
+  Tasks.remove(taskId);
+  return taskId;
+}
+```
+
+The controller ensures proper status codes:
+
+```javascript ~/workspace/source/src/controllers/task.js
+static async delete(req, res) {
+  const { id } = req.params;
+  const result = await TaskModel.delete(id);
+  if (result === false) {
+    res.status(404).json({ message: "Task not found" });
+  }
+  res.status(204).end();
+}
+```
+
+## Bulk Operations
+
+### Update Many Tasks
+
+The model supports bulk updates for operations like category reassignment:
+
+```javascript ~/workspace/source/src/models/task.js
+static async updateMany(propiedad, values, newValue) {
+  const filterQuery = { [propiedad]: { $in: values } };
+  const tasksToUpdate = await Tasks.find(filterQuery);
+  if (tasksToUpdate.length === 0) return 0;
+
+  tasksToUpdate.forEach((task) => {
+    task
+      .update({
+        [propiedad]: newValue,
+        updatedAt: new Date().toISOString(),
+      })
+      .save();
+  });
+  return tasksToUpdate.length;
+}
+```
+
+<Warning>
+  When using `updateMany`, the `updatedAt` timestamp is automatically set for each task, but `finishedAt` logic is not applied. Use individual updates if completion status changes.
+</Warning>
+
+## API Routes
+
+All task endpoints are defined in the router:
+
+```javascript ~/workspace/source/src/routes/tasks.js
+import { Router } from "express";
+import { TaskController } from "../controllers/task.js";
+
+export const tasksRouter = Router();
+
+tasksRouter.post("/", TaskController.create);
+tasksRouter.delete("/:id", TaskController.delete);
+tasksRouter.get("/:id", TaskController.getById);
+tasksRouter.get("/", TaskController.getAll);
+tasksRouter.patch("/:id", TaskController.update);
+```
+
+## Error Handling
+
+<CardGroup cols={2}>
+  <Card title="400 Bad Request" icon="circle-xmark">
+    Invalid input data that fails Zod validation
+  </Card>
+  <Card title="404 Not Found" icon="magnifying-glass">
+    Task ID does not exist in database
+  </Card>
+  <Card title="200 OK" icon="circle-check">
+    Successful read or update operation
+  </Card>
+  <Card title="201 Created" icon="plus">
+    Task successfully created
+  </Card>
+  <Card title="204 No Content" icon="trash">
+    Task successfully deleted
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Tip>
+  **Timestamp Management**: The application automatically handles all timestamp fields. Never manually set `createdAt`, `updatedAt`, or `finishedAt` in your API calls.
+</Tip>
+
+<Tip>
+  **Validation**: Always validate input on both frontend and backend. The Zod schemas provide type-safe validation with clear error messages.
+</Tip>
+
+<Tip>
+  **Partial Updates**: Use PATCH with `validatePartialTask()` to update only specific fields without requiring all task properties.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Categories" icon="folder" href="/features/categories">
+    Learn how to organize tasks with categories
+  </Card>
+  <Card title="Frontend UI" icon="browser" href="/features/frontend-ui">
+    Explore the vanilla JavaScript frontend implementation
+  </Card>
+</CardGroup>

@@ -1,0 +1,482 @@
+---
+title: 'Update Task'
+api: 'PATCH /api/tasks/:id'
+description: 'Update an existing task (partial update)'
+---
+
+## Endpoint
+
+```
+PATCH /api/tasks/:id
+```
+
+Performs a partial update on an existing task. Only the fields you include in the request body will be updated. The API automatically manages the `updatedAt` timestamp and `finishedAt` timestamp based on changes to the `completed` field.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier (UUID) of the task to update.
+  
+  Example: `550e8400-e29b-41d4-a716-446655440000`
+</ParamField>
+
+## Request Body
+
+All fields are optional - include only the fields you want to update.
+
+<ParamField body="title" type="string">
+  Updated task title.
+  
+  **Validation:**
+  - Minimum length: 3 characters
+  - Maximum length: 25 characters
+  - Automatically trimmed
+  
+  Example: `"Updated task title"`
+</ParamField>
+
+<ParamField body="description" type="string">
+  Updated task description.
+  
+  **Validation:**
+  - Maximum length: 25 characters
+  - Automatically trimmed
+  
+  Example: `"Updated description"`
+</ParamField>
+
+<ParamField body="completed" type="boolean">
+  Updated completion status.
+  
+  **Automatic Behavior:**
+  - When changed from `false` to `true`: `finishedAt` is automatically set to current timestamp
+  - When changed from `true` to `false`: `finishedAt` is automatically removed
+  
+  Example: `true`
+</ParamField>
+
+<ParamField body="categoryId" type="string">
+  Updated category assignment.
+  
+  **Special Values:**
+  - Empty string (`""`) assigns task to `"uncategorized"`
+  - Valid UUID assigns task to that category
+  
+  Example: `"550e8400-e29b-41d4-a716-446655440000"` or `""`
+</ParamField>
+
+<Warning>
+  Do not include `_id`, `createdAt`, `updatedAt`, or `finishedAt` in your request. These fields are managed automatically by the API. Any attempt to set them will be ignored.
+</Warning>
+
+## Response
+
+Returns the complete updated task object with all fields.
+
+<ResponseField name="_id" type="string">
+  The task's unique identifier (unchanged).
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The task title (updated if provided in request).
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The task description (updated if provided in request).
+</ResponseField>
+
+<ResponseField name="completed" type="boolean">
+  The completion status (updated if provided in request).
+</ResponseField>
+
+<ResponseField name="categoryId" type="string">
+  The category ID (updated if provided in request).
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  The original creation timestamp (unchanged).
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  Automatically set to current timestamp.
+</ResponseField>
+
+<ResponseField name="finishedAt" type="string | null">
+  Automatically managed based on `completed` status changes.
+</ResponseField>
+
+## Status Codes
+
+- **200 OK** - Task successfully updated
+- **400 Bad Request** - Validation failed on provided fields
+- **404 Not Found** - No task exists with the provided ID
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL - Mark as Completed
+curl -X PATCH http://localhost:3000/api/tasks/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -d '{"completed":true}'
+```
+
+```bash cURL - Update Title and Description
+curl -X PATCH http://localhost:3000/api/tasks/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title":"Updated title",
+    "description":"Updated description"
+  }'
+```
+
+```bash cURL - Change Category
+curl -X PATCH http://localhost:3000/api/tasks/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -d '{"categoryId":"a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"}'
+```
+
+```bash cURL - Remove Category (Set to Uncategorized)
+curl -X PATCH http://localhost:3000/api/tasks/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -d '{"categoryId":""}'
+```
+
+```javascript JavaScript - Mark as Completed
+const taskId = '550e8400-e29b-41d4-a716-446655440000';
+
+const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ completed: true })
+});
+
+if (response.ok) {
+  const updatedTask = await response.json();
+  console.log('Task completed:', updatedTask.finishedAt);
+}
+```
+
+```javascript JavaScript - Update Multiple Fields
+const taskId = '550e8400-e29b-41d4-a716-446655440000';
+
+const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    title: 'Updated task title',
+    description: 'Updated description',
+    completed: false,
+    categoryId: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d'
+  })
+});
+
+if (response.ok) {
+  const updatedTask = await response.json();
+  console.log('Task updated:', updatedTask);
+}
+```
+
+```javascript JavaScript - With Error Handling
+async function updateTask(taskId, updates) {
+  try {
+    const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    
+    if (response.status === 404) {
+      console.error('Task not found');
+      return null;
+    }
+    
+    if (response.status === 400) {
+      const error = await response.json();
+      console.error('Validation error:', error);
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const updatedTask = await response.json();
+    return updatedTask;
+    
+  } catch (error) {
+    console.error('Error updating task:', error);
+    return null;
+  }
+}
+
+// Usage examples
+await updateTask('550e8400-e29b-41d4-a716-446655440000', {
+  completed: true
+});
+
+await updateTask('d4c3b2a1-0f1e-4d3c-9b8a-7c6b5a4d3e2f', {
+  title: 'New title',
+  categoryId: 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d'
+});
+```
+
+</CodeGroup>
+
+### Request Examples
+
+<CodeGroup>
+
+```json Mark as Completed
+{
+  "completed": true
+}
+```
+
+```json Mark as Incomplete
+{
+  "completed": false
+}
+```
+
+```json Update Title Only
+{
+  "title": "New task title"
+}
+```
+
+```json Update Multiple Fields
+{
+  "title": "Updated title",
+  "description": "Updated description",
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+}
+```
+
+```json Remove Category
+{
+  "categoryId": ""
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 200 OK - Task Marked as Completed
+{
+  "_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Write API documentation",
+  "description": "Create comprehensive docs",
+  "completed": true,
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "createdAt": "2026-03-11T10:00:00.000Z",
+  "updatedAt": "2026-03-11T16:00:00.000Z",
+  "finishedAt": "2026-03-11T16:00:00.000Z"
+}
+```
+
+```json 200 OK - Task Marked as Incomplete
+{
+  "_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Write API documentation",
+  "description": "Create comprehensive docs",
+  "completed": false,
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "createdAt": "2026-03-11T10:00:00.000Z",
+  "updatedAt": "2026-03-11T17:00:00.000Z"
+}
+```
+
+```json 200 OK - Category Changed
+{
+  "_id": "d4c3b2a1-0f1e-4d3c-9b8a-7c6b5a4d3e2f",
+  "title": "Review pull request",
+  "description": "Check code quality",
+  "completed": false,
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "createdAt": "2026-03-11T12:00:00.000Z",
+  "updatedAt": "2026-03-11T16:30:00.000Z"
+}
+```
+
+```json 404 Not Found
+{
+  "message": "Task not found"
+}
+```
+
+```json 400 Bad Request
+{
+  "error": "Datos no validos o incompletos"
+}
+```
+
+</CodeGroup>
+
+## Automatic Field Management
+
+### updatedAt Timestamp
+
+The `updatedAt` field is **always** set to the current timestamp on every update, regardless of which fields you modify.
+
+### finishedAt Timestamp Logic
+
+<Tabs>
+  <Tab title="Mark as Complete">
+    When `completed` changes from `false` to `true`:
+    
+    **Before:**
+    ```json
+    {
+      "completed": false
+      // finishedAt not present
+    }
+    ```
+    
+    **Request:**
+    ```json
+    { "completed": true }
+    ```
+    
+    **After:**
+    ```json
+    {
+      "completed": true,
+      "finishedAt": "2026-03-11T16:00:00.000Z"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Mark as Incomplete">
+    When `completed` changes from `true` to `false`:
+    
+    **Before:**
+    ```json
+    {
+      "completed": true,
+      "finishedAt": "2026-03-11T16:00:00.000Z"
+    }
+    ```
+    
+    **Request:**
+    ```json
+    { "completed": false }
+    ```
+    
+    **After:**
+    ```json
+    {
+      "completed": false
+      // finishedAt removed
+    }
+    ```
+  </Tab>
+  
+  <Tab title="No Change">
+    When `completed` is not modified or remains the same:
+    
+    **Request:**
+    ```json
+    { "title": "New title" }
+    ```
+    
+    **Result:**
+    - `finishedAt` remains unchanged
+    - Only `title` and `updatedAt` are modified
+  </Tab>
+</Tabs>
+
+## Common Use Cases
+
+### Toggle Task Completion
+
+```javascript
+async function toggleTaskCompletion(taskId) {
+  // First, get the current task
+  const getResponse = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+  const task = await getResponse.json();
+  
+  // Toggle the completion status
+  const updateResponse = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed: !task.completed })
+  });
+  
+  return await updateResponse.json();
+}
+```
+
+### Move Task to Different Category
+
+```javascript
+async function moveTaskToCategory(taskId, newCategoryId) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryId: newCategoryId })
+  });
+  
+  if (response.ok) {
+    const updatedTask = await response.json();
+    console.log(`Task moved to category: ${updatedTask.categoryId}`);
+    return updatedTask;
+  }
+}
+```
+
+### Rename Task
+
+```javascript
+async function renameTask(taskId, newTitle) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: newTitle })
+  });
+  
+  return await response.json();
+}
+```
+
+### Update Task Description
+
+```javascript
+async function updateDescription(taskId, newDescription) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description: newDescription })
+  });
+  
+  return await response.json();
+}
+```
+
+## Usage Notes
+
+<Info>
+  **Partial Updates**: This is a PATCH endpoint, which means you only need to include fields you want to change. Unspecified fields remain unchanged.
+</Info>
+
+<Tip>
+  **Optimistic UI Updates**: You can update your UI immediately when the user makes changes, then sync with the API in the background for better perceived performance.
+</Tip>
+
+<Warning>
+  **Category Validation**: The API does not validate whether the `categoryId` you provide exists. Make sure you're using valid category UUIDs.
+</Warning>
+
+<Note>
+  **Empty String Behavior**: Setting `categoryId` to an empty string (`""`) will assign the task to `"uncategorized"`. This is equivalent to removing the category assignment.
+</Note>
+
+## Related Endpoints
+
+- [Get Task by ID](/api/tasks/get-by-id) - Retrieve current task state
+- [Create Task](/api/tasks/create) - Create a new task
+- [Delete Task](/api/tasks/delete) - Remove a task
+- [Get All Categories](/api/categories/get-all) - Get available categories

@@ -1,0 +1,516 @@
+---
+title: 'Create Category'
+api: 'POST /api/taskCategories'
+description: 'Create a new task category'
+---
+
+## Endpoint
+
+```
+POST /api/taskCategories
+```
+
+Creates a new task category in the system. The API automatically generates a UUID for the category.
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  The category name.
+  
+  **Validation:**
+  - Minimum length: 2 characters
+  - Maximum length: 25 characters
+  - Automatically trimmed (whitespace removed)
+  - Should be unique (recommended but not enforced)
+  
+  Example: `"Work"`, `"Personal"`, `"Shopping"`
+</ParamField>
+
+## Response
+
+Returns the newly created category object.
+
+<ResponseField name="_id" type="string">
+  Auto-generated unique identifier (UUID v4).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The category name from the request.
+</ResponseField>
+
+## Status Codes
+
+- **201 Created** - Category successfully created
+- **400 Bad Request** - Validation failed (invalid or missing name)
+- **500 Internal Server Error** - Server-side error occurred
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:3000/api/taskCategories \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Work"}'
+```
+
+```javascript JavaScript Fetch
+const response = await fetch('http://localhost:3000/api/taskCategories', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Work' })
+});
+
+if (response.status === 201) {
+  const newCategory = await response.json();
+  console.log('Created category:', newCategory);
+} else if (response.status === 400) {
+  const error = await response.json();
+  console.error('Validation error:', error);
+}
+```
+
+```javascript JavaScript with Error Handling
+async function createCategory(name) {
+  try {
+    const response = await fetch('http://localhost:3000/api/taskCategories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    
+    if (response.status === 400) {
+      const error = await response.json();
+      console.error('Validation failed:', error);
+      return null;
+    }
+    
+    if (response.status === 500) {
+      const error = await response.json();
+      console.error('Server error:', error);
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const newCategory = await response.json();
+    return newCategory;
+    
+  } catch (error) {
+    console.error('Error creating category:', error);
+    return null;
+  }
+}
+
+// Usage
+const category = await createCategory('Work');
+if (category) {
+  console.log(`Created category ${category._id}: ${category.name}`);
+}
+```
+
+```javascript JavaScript - Check Duplicates First
+async function createCategoryIfNotExists(name) {
+  // First, check if category with this name already exists
+  const allCategoriesRes = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await allCategoriesRes.json();
+  
+  const existing = categories.find(
+    cat => cat.name.toLowerCase() === name.toLowerCase()
+  );
+  
+  if (existing) {
+    console.log('Category already exists:', existing);
+    return existing;
+  }
+  
+  // Create new category
+  const response = await fetch('http://localhost:3000/api/taskCategories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  
+  if (response.status === 201) {
+    const newCategory = await response.json();
+    console.log('Created new category:', newCategory);
+    return newCategory;
+  }
+  
+  return null;
+}
+```
+
+</CodeGroup>
+
+### Request Examples
+
+<CodeGroup>
+
+```json Basic Request
+{
+  "name": "Work"
+}
+```
+
+```json Another Example
+{
+  "name": "Personal"
+}
+```
+
+```json With Extra Whitespace (Auto-trimmed)
+{
+  "name": "  Shopping  "
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 201 Created
+{
+  "_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "name": "Work"
+}
+```
+
+```json 400 Bad Request - Name Too Short
+{
+  "error": [
+    {
+      "code": "too_small",
+      "minimum": 2,
+      "type": "string",
+      "inclusive": true,
+      "exact": false,
+      "message": "String must contain at least 2 character(s)",
+      "path": ["name"]
+    }
+  ]
+}
+```
+
+```json 400 Bad Request - Name Too Long
+{
+  "error": [
+    {
+      "code": "too_big",
+      "maximum": 25,
+      "type": "string",
+      "inclusive": true,
+      "exact": false,
+      "message": "String must contain at most 25 character(s)",
+      "path": ["name"]
+    }
+  ]
+}
+```
+
+```json 400 Bad Request - Missing Name
+{
+  "error": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "undefined",
+      "path": ["name"],
+      "message": "Required"
+    }
+  ]
+}
+```
+
+```json 500 Internal Server Error
+{
+  "error": "No se pudo crear la categoría en el servidor"
+}
+```
+
+</CodeGroup>
+
+## Validation Rules
+
+<Warning>
+  All validation is performed server-side using Zod schemas. Invalid requests will return detailed error messages.
+</Warning>
+
+| Field | Required | Type | Min | Max |
+|-------|----------|------|-----|-----|
+| name | ✓ | string | 2 | 25 |
+
+### Common Validation Errors
+
+- **Name too short**: Minimum 2 characters required
+- **Name too long**: Maximum 25 characters allowed
+- **Missing name**: The `name` field is required
+- **Invalid type**: Name must be a string
+
+## Usage Notes
+
+<Info>
+  **Auto-Generated ID**: Never include `_id` in your request body. The API automatically generates a UUID v4 for each new category.
+</Info>
+
+<Note>
+  **Unique Names**: While the API doesn't enforce unique category names at the database level, it's recommended to check for duplicates before creating a new category to avoid confusion.
+</Note>
+
+<Tip>
+  **Trimming**: The API automatically trims whitespace from the beginning and end of the name, so `" Work "` becomes `"Work"`.
+</Tip>
+
+## Common Patterns
+
+### Create Category and Use Immediately
+
+```javascript
+async function createTaskInNewCategory(categoryName, taskData) {
+  // Create the category
+  const categoryResponse = await fetch('http://localhost:3000/api/taskCategories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: categoryName })
+  });
+  
+  if (!categoryResponse.ok) {
+    console.error('Failed to create category');
+    return null;
+  }
+  
+  const category = await categoryResponse.json();
+  
+  // Create task in that category
+  const taskResponse = await fetch('http://localhost:3000/api/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...taskData,
+      categoryId: category._id
+    })
+  });
+  
+  if (!taskResponse.ok) {
+    console.error('Failed to create task');
+    return null;
+  }
+  
+  const task = await taskResponse.json();
+  
+  return { category, task };
+}
+
+// Usage
+const result = await createTaskInNewCategory('Project X', {
+  title: 'Initial planning',
+  description: 'Define scope and timeline'
+});
+```
+
+### Bulk Create Categories
+
+```javascript
+async function createMultipleCategories(categoryNames) {
+  const results = await Promise.all(
+    categoryNames.map(async (name) => {
+      const response = await fetch('http://localhost:3000/api/taskCategories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      
+      if (response.status === 201) {
+        return await response.json();
+      }
+      
+      return null;
+    })
+  );
+  
+  const successful = results.filter(r => r !== null);
+  console.log(`Created ${successful.length} of ${categoryNames.length} categories`);
+  
+  return successful;
+}
+
+// Usage
+const categories = await createMultipleCategories([
+  'Work',
+  'Personal',
+  'Shopping',
+  'Health',
+  'Finance'
+]);
+```
+
+### Create with Validation
+
+```javascript
+function validateCategoryName(name) {
+  if (!name || typeof name !== 'string') {
+    return { valid: false, error: 'Name is required and must be a string' };
+  }
+  
+  const trimmed = name.trim();
+  
+  if (trimmed.length < 2) {
+    return { valid: false, error: 'Name must be at least 2 characters' };
+  }
+  
+  if (trimmed.length > 25) {
+    return { valid: false, error: 'Name must be at most 25 characters' };
+  }
+  
+  return { valid: true, name: trimmed };
+}
+
+async function createCategoryWithValidation(name) {
+  const validation = validateCategoryName(name);
+  
+  if (!validation.valid) {
+    console.error('Validation error:', validation.error);
+    return null;
+  }
+  
+  const response = await fetch('http://localhost:3000/api/taskCategories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: validation.name })
+  });
+  
+  if (response.status === 201) {
+    return await response.json();
+  }
+  
+  return null;
+}
+```
+
+### Get or Create Category
+
+```javascript
+async function getOrCreateCategory(name) {
+  // Try to find existing category
+  const response = await fetch('http://localhost:3000/api/taskCategories');
+  const categories = await response.json();
+  
+  const existing = categories.find(
+    cat => cat.name.toLowerCase() === name.toLowerCase()
+  );
+  
+  if (existing) {
+    return existing;
+  }
+  
+  // Create new category
+  const createResponse = await fetch('http://localhost:3000/api/taskCategories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+  
+  if (createResponse.status === 201) {
+    return await createResponse.json();
+  }
+  
+  return null;
+}
+
+// Usage
+const category = await getOrCreateCategory('Work');
+```
+
+## Integration Examples
+
+### React Form Component
+
+```javascript
+import { useState } from 'react';
+
+function CreateCategoryForm({ onCategoryCreated }) {
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/taskCategories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      
+      if (response.status === 400) {
+        const errorData = await response.json();
+        setError('Invalid category name');
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to create category');
+      }
+      
+      const newCategory = await response.json();
+      setName(''); // Clear form
+      onCategoryCreated(newCategory);
+      
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Category name"
+        minLength={2}
+        maxLength={25}
+        required
+      />
+      <button type="submit" disabled={loading}>
+        {loading ? 'Creating...' : 'Create Category'}
+      </button>
+      {error && <div style={{color: 'red'}}>{error}</div>}
+    </form>
+  );
+}
+```
+
+## Best Practices
+
+<Tip>
+  **Check for Duplicates**: Before creating a category, fetch all categories and check if one with the same name already exists to avoid duplicates.
+</Tip>
+
+<Tip>
+  **Client-Side Validation**: Implement client-side validation to provide immediate feedback to users before making the API call.
+</Tip>
+
+<Tip>
+  **Handle All Status Codes**: Always handle 201 (success), 400 (validation error), and 500 (server error) status codes appropriately.
+</Tip>
+
+<Warning>
+  **Reserved Names**: Avoid creating a category named "uncategorized" as this is the special default value used by the system.
+</Warning>
+
+## Related Endpoints
+
+- [Get All Categories](/api/categories/get-all) - List all categories
+- [Update Category](/api/categories/update) - Modify a category name
+- [Delete Categories](/api/categories/delete) - Remove categories
+- [Create Task](/api/tasks/create) - Create a task with this category

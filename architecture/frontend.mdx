@@ -1,0 +1,735 @@
+---
+title: 'Frontend Architecture'
+description: 'Comprehensive guide to the frontend MVC architecture, including controllers, views, services, and event handling'
+icon: 'browser'
+---
+
+## Overview
+
+The Task Manager frontend is built with **vanilla JavaScript** using a clean MVC (Model-View-Controller) architecture. The application eschews frameworks in favor of native browser APIs, providing a lightweight and performant user experience.
+
+<Note>
+The frontend uses **ES6 modules** exclusively, leveraging modern JavaScript features like classes, async/await, and destructuring.
+</Note>
+
+## MVC Architecture
+
+The frontend follows a strict MVC pattern that separates concerns:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   User Interface                        │
+└─────────────────────────────────────────────────────────┘
+                           ↕
+┌─────────────────────────────────────────────────────────┐
+│                    CONTROLLERS                          │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  • Handle user interactions                       │  │
+│  │  • Coordinate between Views and Services         │  │
+│  │  • Manage application state                      │  │
+│  │  • Event listeners and delegation                │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+          ↓                                    ↓
+┌─────────────────────┐          ┌─────────────────────────┐
+│       VIEWS         │          │       SERVICES          │
+│  ┌───────────────┐  │          │  ┌───────────────────┐  │
+│  │ • Render DOM  │  │          │  │ • API calls       │  │
+│  │ • Templates   │  │          │  │ • HTTP requests   │  │
+│  │ • UI updates  │  │          │  │ • Data fetching   │  │
+│  └───────────────┘  │          │  └───────────────────┘  │
+└─────────────────────┘          └─────────────────────────┘
+```
+
+## Entry Point
+
+The application bootstraps through a simple entry point:
+
+<CodeGroup>
+```javascript public/js/main.js
+import { AppController } from './controllers/App.js';
+
+const appController = new AppController();
+appController.init();
+```
+
+```html public/index.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./styles/normalize.css">
+  <link rel="stylesheet" href="./styles/index.css">
+  <script type="module" src="./js/main.js"></script>
+  <title>Task Manager</title>
+</head>
+<body>
+  <!-- Application HTML structure -->
+</body>
+</html>
+```
+</CodeGroup>
+
+<Steps>
+  <Step title="Module Import">
+    Import the `AppController` using ES6 module syntax.
+  </Step>
+  
+  <Step title="Instantiation">
+    Create a new instance of `AppController`.
+  </Step>
+  
+  <Step title="Initialization">
+    Call the `init()` method to bootstrap the application.
+  </Step>
+</Steps>
+
+## Controllers
+
+Controllers orchestrate the application logic, handling user interactions and coordinating between views and services.
+
+### App Controller
+
+The main application controller initializes sub-controllers:
+
+<CodeGroup>
+```javascript public/js/controllers/App.js
+import { API_URL } from '../config.js';
+import { TaskController } from './Task.js';
+import { TaskCategoryController } from './TaskCategory.js';
+
+export class AppController {
+  constructor() {
+    this.taskController = new TaskController(API_URL, 'tasks-section');
+    this.taskCategoryController = new TaskCategoryController(API_URL);
+  }
+
+  async init() {
+    await this.taskController.init();
+  }
+}
+```
+</CodeGroup>
+
+<Accordion title="App Controller Responsibilities">
+- **Dependency Injection**: Passes API URL configuration to sub-controllers
+- **Controller Initialization**: Creates and initializes task and category controllers
+- **Application Bootstrap**: Orchestrates the initial application load
+</Accordion>
+
+### Task Controller
+
+The task controller manages all task-related interactions:
+
+<CodeGroup>
+```javascript public/js/controllers/Task.js
+import { TasksView } from "../views/Task.js";
+import { TaskService } from "../services/Task.js";
+import { TaskCategoryService } from "../services/TaskCategory.js";
+import { sortCollection } from "../utils/sortCollection.js";
+
+export class TaskController {
+  constructor(apiUrl, containerId) {
+    this.taskService = new TaskService(apiUrl);
+    this.taskCategoryService = new TaskCategoryService(apiUrl);
+    this.container = document.getElementById(containerId);
+    
+    // Sort configuration
+    this.sortTasksBy = 'title';
+    this.sortTasksDirection = 'asc';
+    this.sortCategoriesBy = 'name';
+    this.sortCategoriesDirection = 'asc';
+
+    this.addEventListeners();
+  }
+
+  async init() {
+    await TasksView.resetTasksList();
+    
+    // Load and render categories
+    const categories = await this.getPreparedCategory();
+    if (!categories) return;
+    categories.forEach(element => {
+      TasksView.renderCategory(element);
+    });
+
+    // Load and render tasks
+    const tasks = await this.taskService.getAll();
+    if (!tasks || tasks.length === 0) return;
+
+    const orderTasks = sortCollection(tasks, this.sortTasksBy, this.sortTasksDirection);
+    orderTasks.forEach(element => {
+      TasksView.renderCard(element);
+    });
+  }
+
+  async getPreparedCategory() {
+    const categories = await this.taskCategoryService.getAll();
+    let orderCategories = [];
+    if (categories.length > 0) {
+      orderCategories = sortCollection(categories, this.sortCategoriesBy, this.sortCategoriesDirection);
+    }
+    // Add default "uncategorized" category
+    orderCategories.unshift({_id: 'uncategorized', name: 'Sin categoría'});
+    return orderCategories;
+  }
+
+  async handleClickEvent(e) {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    const taskCard = e.target.closest('.task-card');
+    const taskId = taskCard?.dataset?.id ? taskCard.dataset.id : null;
+
+    if (!action) { return; }
+    
+    // CRUD operations
+    switch (action) {
+      case 'create':
+        TasksView.openModal(await this.getPreparedCategory());
+        break;
+      case 'edit':
+        TasksView.openModal(
+          await this.getPreparedCategory(),
+          await this.taskService.getById(taskId)
+        );
+        break;
+      case 'delete':
+        TasksView.openModalConfirmation(await this.taskService.getById(taskId));
+        break;
+      case 'finish':
+        const isCompleted = taskCard.classList.contains('completed');
+        const data = { id: taskId, finished: isCompleted ? '' : 'on' };
+        const updatedTask = await this.taskService.update(data);
+        TasksView.deleteCard(updatedTask._id);
+        TasksView.renderCard(updatedTask);
+        break;
+    }
+  }
+
+  async handleModalEvent(e) {
+    const { type, action, data } = e.detail;
+    if (type !== 'task') return; // Ignore other modal types
+
+    if (action === 'create') {
+      const createdTask = await this.taskService.save(data);
+      if (createdTask) { TasksView.renderCard(createdTask); }
+    }
+    if (action === 'update') {
+      const updatedTask = await this.taskService.update(data);
+      if (updatedTask) {
+        TasksView.deleteCard(updatedTask._id);
+        TasksView.renderCard(updatedTask);
+      }
+    }
+    if (action === 'delete') {
+      const deleted = await this.taskService.delete(data.id);
+      if (deleted) { TasksView.deleteCard(deleted); }
+    }
+  }
+
+  addEventListeners() {
+    this.container.addEventListener('click', this.handleClickEvent.bind(this));
+    // Custom event for modal confirmations
+    window.addEventListener('modal:confirm', (e) => this.handleModalEvent(e));
+    // Category update event
+    window.addEventListener('categoryUpdated', (e) => this.init());
+  }
+}
+```
+</CodeGroup>
+
+<Info>
+**Controller Features:**
+- **Event Delegation**: Uses a single click listener on the container for all task actions
+- **Custom Events**: Leverages `window.addEventListener` for cross-component communication
+- **Async Operations**: All data operations are asynchronous
+- **Optimistic Updates**: Immediately updates the UI after API calls
+</Info>
+
+### Event Handling Pattern
+
+The application uses a sophisticated event delegation pattern:
+
+<Steps>
+  <Step title="Event Delegation">
+    A single event listener on the container catches all clicks using `event.target.closest()`.
+    
+    ```javascript
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    ```
+  </Step>
+  
+  <Step title="Data Attributes">
+    HTML elements use `data-action` attributes to identify actions:
+    
+    ```html
+    <button data-action="create">Create Task</button>
+    <button data-action="edit">Edit</button>
+    <button data-action="delete">Delete</button>
+    ```
+  </Step>
+  
+  <Step title="Custom Events">
+    Components communicate through custom events:
+    
+    ```javascript
+    window.dispatchEvent(new CustomEvent('modal:confirm', {
+      detail: { type: 'task', action: 'create', data: formData }
+    }));
+    ```
+  </Step>
+</Steps>
+
+## Views
+
+Views are responsible for rendering HTML and manipulating the DOM.
+
+### Task View
+
+<CodeGroup>
+```javascript public/js/views/Task.js
+import { Modal, ModalConfirmation } from "../controllers/Modal.js";
+import { formatDate } from "../utils/formatDate.js";
+import { dinamicSelect } from "../utils/dinamicSelect.js";
+
+export class TasksView {
+  static async resetTasksList() {
+    const taskContainer = document.getElementById('task-categories-container');
+    if (!taskContainer) return;
+    taskContainer.innerHTML = '';
+  }
+
+  static dateString(dateValues) {
+    if (!dateValues) { return; }
+    const date = `${dateValues.day}-${dateValues.month}-${dateValues.year} a las ${dateValues.hour}:${dateValues.minutes} horas`;
+    return date;
+  }
+
+  static deleteCard(id) {
+    const taskCard = document.querySelector(`[data-id="${id}"]`);
+    if (taskCard) { taskCard.remove(); }
+  }
+
+  static renderCard(input) {
+    if (!input) return;
+    
+    // Find the category container
+    const categoryContainer = input.categoryId ?
+      document.querySelector(`[id="${input.categoryId}"]`) :
+      document.querySelector('#uncategorized');
+    
+    // Get task lists
+    const taskList = categoryContainer.querySelector('.tasks-list');
+    const taskCompletedList = categoryContainer.querySelector('.tasks-list-completed');
+
+    // Create task card element
+    const taskCard = document.createElement('li');
+    const createdAt = this.dateString(formatDate(input.createdAt));
+    const updatedAtValues = this.dateString(formatDate(input.updatedAt));
+    const finishedAtValues = this.dateString(formatDate(input.finishedAt));
+
+    const updatedTxt = updatedAtValues ? `última actualización: ${updatedAtValues}` : '';
+    const finishedTxt = finishedAtValues ? `finalizado: ${finishedAtValues}` : '';
+
+    const taskCompleted = !!input.completed;
+
+    taskCard.classList.add('task-card');
+    taskCard.dataset.id = input._id;
+
+    taskCard.innerHTML = `
+      <div class="task-info-main">
+        <button class="btn_crud btn_crud--finish" id="task_finished-btn" data-action="finish">
+          <img src="./assets/icons/check.svg">
+        </button>
+        <p class="task-text">
+          <span id="task_title" class="bold">${input.title}: </span>
+          <span id="task_description">${input.description}</span>
+        </p>
+        <div class="btn_crud--container">
+          <button class="btn_crud btn_crud--edit" data-action="edit">
+            <img src="./assets/icons/edit.svg">
+          </button>
+          <button class="btn_crud btn_crud--delete" data-action="delete">
+            <img src="./assets/icons/delete.svg">
+          </button>
+        </div>
+      </div>
+      <div>
+        <p class="substring">
+          <span>creado: ${createdAt}</span>
+          <span id='task_updated'>${updatedTxt}</span>
+          <span id='task_finished'>${finishedTxt}</span>
+        </p>
+      </div>
+    `;
+
+    // Append to appropriate list
+    if (taskCompleted) {
+      taskCard.classList.add('completed');
+      taskCompletedList.appendChild(taskCard);
+    } else {
+      taskList.appendChild(taskCard);
+    }
+  }
+
+  static openModal(dataCategory, dataTask) {
+    let action = 'create';
+    let h2 = 'NUEVA TAREA';
+    let inputId = '', inputTitle = '', inputDescription = '', inputFinished = '', inputCategory = '';
+
+    if (dataTask) {
+      action = 'update';
+      h2 = 'ACTUALIZAR TAREA';
+      inputTitle = dataTask.title;
+      inputDescription = dataTask.description;
+      inputId = `<input type="text" id="task-id" name="id" value="${dataTask._id}" hidden>`;
+      if (dataTask.completed) { inputFinished = 'checked'; }
+      inputCategory = dataTask.categoryId;
+    }
+
+    const modalFormBody = `
+      <form class="form-task">
+        <H2>${h2}</H2>
+        ${inputId}
+        <div class="form-group form-group--column">
+          <label for="task-name">Título:</label>
+          <input type="text" id="task-name" name="title" value="${inputTitle}" 
+                 placeholder="Tu próxima tarea" maxlength="25" required>
+        </div>
+        <div class="form-group form-group--column">
+          <label for="task-description">Descripción:</label>
+          <textarea type="text" id="task-description" name="description" 
+                    placeholder="Qué tienes que hacer" maxlength="40" required>${inputDescription}</textarea>
+        </div>
+        <div class="form-group form-group--row">
+          <div class="inline">
+            <label class="inline" for="task-finish">Finished</label>
+            <input class="inline" type="checkbox" id="task-finish" name="finished" ${inputFinished}>
+          </div>
+          <div class="inline">
+            <label class="inline" for="task-category">Categoría</label>
+            <select name="categoryId" id="task-category">${dinamicSelect(dataCategory)}</select>
+          </div>
+        </div>
+      </form>
+    `;
+    Modal.open('task', action, modalFormBody);
+  }
+
+  static renderCategory(input) {
+    const mainContainer = document.getElementById('task-categories-container');
+    const categoryContainer = document.createElement('div');
+
+    categoryContainer.classList.add('category-container');
+    categoryContainer.id = input._id;
+
+    categoryContainer.innerHTML = `
+      <H2>${input.name}</H2>
+      <ul class='tasks-list'></ul>
+      <ul class='tasks-list-completed'></ul>
+    `;
+
+    mainContainer.appendChild(categoryContainer);
+  }
+}
+```
+</CodeGroup>
+
+<Accordion title="View Layer Responsibilities">
+**Key Responsibilities:**
+- **DOM Manipulation**: Create, update, and delete HTML elements
+- **Template Rendering**: Generate HTML strings with dynamic data
+- **Event Attributes**: Add `data-action` attributes for event delegation
+- **Conditional Rendering**: Show/hide elements based on state
+- **List Management**: Separate completed and active tasks
+
+**Static Methods:**
+All view methods are static because views don't maintain state—they simply render data provided by controllers.
+</Accordion>
+
+<Tip>
+The `renderCard` method demonstrates **smart placement**: tasks are automatically added to either the active or completed list based on their status, and inserted into the correct category container.
+</Tip>
+
+## Services
+
+Services handle all API communication using the Fetch API.
+
+### Task Service
+
+<CodeGroup>
+```javascript public/js/services/Task.js
+export class TaskService {
+  constructor(apiUrl) {
+    this.apiClient = `${apiUrl}/tasks`;
+  }
+
+  async getAll() {
+    try {
+      const result = await fetch(this.apiClient);
+      const data = await result.json();
+      return data;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async getById(id) {
+    try {
+      const result = await fetch(`${this.apiClient}/${id}`);
+      const data = await result.json();
+      return data;
+    } catch (error) {
+      console.log("error:", error);
+    }
+  }
+
+  async save(data) {
+    if (!data) { return; }
+    
+    const taskCompleted = data.finished === "on" ? true : false;
+    const categoryId = data.categoryId === "uncategorized" ? "" : data.categoryId;
+
+    try {
+      const result = await fetch(`${this.apiClient}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          completed: taskCompleted,
+          categoryId: categoryId,
+        }),
+      });
+
+      const newTask = await result.json();
+      return newTask;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async update(data) {
+    if (!data.id) { return; }
+    
+    const taskCompleted = data.finished === "on" ? true : false;
+    const categoryId = data.categoryId === "uncategorized" ? "" : data.categoryId;
+
+    try {
+      const result = await fetch(`${this.apiClient}/${data.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          completed: taskCompleted,
+          categoryId: categoryId,
+        }),
+      });
+
+      const updatedTask = await result.json();
+      return updatedTask;
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async delete(id) {
+    try {
+      await fetch(`${this.apiClient}/${id}`, {
+        method: "DELETE",
+      });
+      return id;
+    } catch (error) {
+      throw new Error(error);
+    }
+  }
+}
+```
+</CodeGroup>
+
+<Info>
+**Service Layer Features:**
+- **API Abstraction**: Encapsulates all HTTP communication
+- **Error Handling**: Gracefully handles network errors
+- **Data Transformation**: Converts form data to API-compatible format
+- **Async/Await**: Uses modern async patterns for clean code
+</Info>
+
+### Data Transformation
+
+Services transform form data before sending to the API:
+
+<Steps>
+  <Step title="Checkbox Conversion">
+    Converts checkbox value "on" to boolean:
+    ```javascript
+    const taskCompleted = data.finished === "on" ? true : false;
+    ```
+  </Step>
+  
+  <Step title="Category Normalization">
+    Converts "uncategorized" to empty string:
+    ```javascript
+    const categoryId = data.categoryId === "uncategorized" ? "" : data.categoryId;
+    ```
+  </Step>
+  
+  <Step title="JSON Serialization">
+    Converts JavaScript objects to JSON:
+    ```javascript
+    body: JSON.stringify({
+      title: data.title,
+      description: data.description,
+      completed: taskCompleted,
+      categoryId: categoryId,
+    })
+    ```
+  </Step>
+</Steps>
+
+## Utility Functions
+
+Utility modules provide reusable helper functions:
+
+<CardGroup cols={3}>
+  <Card title="Date Formatting" icon="calendar">
+    `formatDate.js` - Converts ISO date strings to human-readable format
+    
+    ```javascript
+    formatDate(input.createdAt)
+    // Returns: { day, month, year, hour, minutes }
+    ```
+  </Card>
+  
+  <Card title="Collection Sorting" icon="sort">
+    `sortCollection.js` - Sorts arrays by property and direction
+    
+    ```javascript
+    sortCollection(tasks, 'title', 'asc')
+    // Returns sorted array
+    ```
+  </Card>
+  
+  <Card title="Dynamic Select" icon="list">
+    `dinamicSelect.js` - Generates option elements for select dropdowns
+    
+    ```javascript
+    dinamicSelect(categories)
+    // Returns: HTML option elements
+    ```
+  </Card>
+</CardGroup>
+
+## Component Communication
+
+The application uses multiple patterns for component communication:
+
+### 1. Direct Method Calls
+
+Controllers directly call view methods:
+
+```javascript
+TasksView.renderCard(createdTask);
+TasksView.deleteCard(taskId);
+```
+
+### 2. Custom Events
+
+Components emit custom events for decoupled communication:
+
+```javascript
+// Emit event
+window.dispatchEvent(new CustomEvent('modal:confirm', {
+  detail: { type: 'task', action: 'create', data: formData }
+}));
+
+// Listen for event
+window.addEventListener('modal:confirm', (e) => this.handleModalEvent(e));
+```
+
+<Note>
+Custom events enable **loose coupling** between components, allowing modals to communicate with controllers without direct references.
+</Note>
+
+### 3. Constructor Injection
+
+Dependencies are passed through constructors:
+
+```javascript
+export class TaskController {
+  constructor(apiUrl, containerId) {
+    this.taskService = new TaskService(apiUrl);
+    this.container = document.getElementById(containerId);
+  }
+}
+```
+
+## Configuration
+
+<CodeGroup>
+```javascript public/js/config.js
+export const API_URL = 'http://localhost:3000/api';
+export const FETCH_HEADER_TYPE = {'Content-Type': 'application/json'};
+```
+</CodeGroup>
+
+<Tip>
+Centralizing configuration in a single file makes it easy to change API endpoints for different environments (development, staging, production).
+</Tip>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="ES6 Modules" icon="cube">
+    Use `import`/`export` for clean dependency management and tree-shaking.
+  </Card>
+  
+  <Card title="Static View Methods" icon="eye">
+    Views use static methods since they're stateless rendering functions.
+  </Card>
+  
+  <Card title="Event Delegation" icon="hand-pointer">
+    Single event listener per container reduces memory usage and improves performance.
+  </Card>
+  
+  <Card title="Async/Await" icon="spinner">
+    Modern async patterns make asynchronous code readable and maintainable.
+  </Card>
+  
+  <Card title="Data Attributes" icon="tag">
+    Use `data-*` attributes for semantic action identification in HTML.
+  </Card>
+  
+  <Card title="Separation of Concerns" icon="layer-group">
+    Clear boundaries between controllers, views, and services ensure maintainability.
+  </Card>
+</CardGroup>
+
+## Performance Optimizations
+
+<Accordion title="Key Performance Strategies">
+**1. Event Delegation**
+- Single event listener instead of listeners on every button
+- Reduces memory footprint and initialization time
+
+**2. Selective Rendering**
+- Only re-render changed elements, not the entire list
+- `deleteCard()` and `renderCard()` update individual items
+
+**3. Native APIs**
+- No framework overhead
+- Direct DOM manipulation is fast for small applications
+
+**4. ES6 Modules**
+- Browser-native module loading
+- Automatic code splitting and lazy loading
+
+**5. Minimal Dependencies**
+- No bundler required
+- Fast page loads with native JavaScript
+</Accordion>

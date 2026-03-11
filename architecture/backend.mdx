@@ -1,0 +1,599 @@
+---
+title: 'Backend Architecture'
+description: 'Deep dive into the Express.js backend, including routing, controllers, models, middleware, and validation with Zod'
+icon: 'server'
+---
+
+## Overview
+
+The Task Manager backend is built with Express.js 5.1.0, following a layered architecture pattern that separates concerns into distinct components. The application uses ES6 modules and implements RESTful API endpoints for task and category management.
+
+## Application Setup
+
+### Entry Point
+
+The main application file configures Express.js and sets up all middleware and routes:
+
+<CodeGroup>
+```javascript src/index.js
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { tasksRouter } from "./routes/tasks.js";
+import { taskCategoriesRouter } from "./routes/taskCategories.js";
+import { corsMiddleware } from "./middlewares/cors.js";
+
+const app = express();
+app.use(express.json()); // Parse JSON request bodies
+app.use(corsMiddleware()); // Enable CORS
+app.disable("x-powered-by"); // Hide Express signature
+
+// Serve static files from public directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, "..", "public")));
+
+// API Routes
+app.use("/api/tasks", tasksRouter);
+app.use("/api/taskCategories", taskCategoriesRouter);
+
+// Serve index.html for all non-API routes (SPA support)
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+});
+
+const PORT = process.env.PORT ?? 3000;
+
+app.listen(PORT, () => {
+  console.log(`servidor corriendo en el puerto:${PORT}`);
+});
+```
+</CodeGroup>
+
+<Steps>
+  <Step title="Environment Configuration">
+    Loads environment variables using `dotenv` for configuration management.
+  </Step>
+  
+  <Step title="Middleware Setup">
+    Configures JSON parsing, CORS, and security headers.
+  </Step>
+  
+  <Step title="Static File Serving">
+    Serves frontend files from the `public` directory.
+  </Step>
+  
+  <Step title="API Routes">
+    Mounts task and category routers under `/api` prefix.
+  </Step>
+  
+  <Step title="SPA Fallback">
+    Serves `index.html` for all non-API routes to support client-side routing.
+  </Step>
+</Steps>
+
+## Routing Layer
+
+Routes define the API endpoints and map them to controller methods.
+
+### Task Routes
+
+<CodeGroup>
+```javascript src/routes/tasks.js
+import { Router } from "express";
+import { TaskController } from "../controllers/task.js";
+
+export const tasksRouter = Router();
+
+tasksRouter.post("/", TaskController.create);
+tasksRouter.delete("/:id", TaskController.delete);
+tasksRouter.get("/:id", TaskController.getById);
+tasksRouter.get("/", TaskController.getAll);
+tasksRouter.patch("/:id", TaskController.update);
+```
+</CodeGroup>
+
+### Category Routes
+
+<CodeGroup>
+```javascript src/routes/taskCategories.js
+import { Router } from "express";
+import { TaskCategoryController } from "../controllers/taskCategory.js";
+
+export const taskCategoriesRouter = Router();
+
+taskCategoriesRouter.post("/", TaskCategoryController.create);
+// Delete uses POST because it expects an array in req.body
+taskCategoriesRouter.post("/delete", TaskCategoryController.delete);
+taskCategoriesRouter.get("/", TaskCategoryController.getAll);
+taskCategoriesRouter.get("/:id", TaskCategoryController.getById);
+taskCategoriesRouter.patch("/:id", TaskCategoryController.update);
+```
+</CodeGroup>
+
+<Note>
+The category delete endpoint uses POST instead of DELETE because it accepts an array of category IDs in the request body for batch deletion.
+</Note>
+
+### API Endpoints Summary
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tasks` | Retrieve all tasks |
+| GET | `/api/tasks/:id` | Retrieve single task |
+| POST | `/api/tasks` | Create new task |
+| PATCH | `/api/tasks/:id` | Update existing task |
+| DELETE | `/api/tasks/:id` | Delete task |
+| GET | `/api/taskCategories` | Retrieve all categories |
+| GET | `/api/taskCategories/:id` | Retrieve single category |
+| POST | `/api/taskCategories` | Create new category |
+| PATCH | `/api/taskCategories/:id` | Update category |
+| POST | `/api/taskCategories/delete` | Batch delete categories |
+
+## Controllers
+
+Controllers handle HTTP requests, validate input, and coordinate between services and models.
+
+### Task Controller
+
+<CodeGroup>
+```javascript src/controllers/task.js
+import { TaskModel } from "../models/task.js";
+import { validateTask, validatePartialTask } from "../schemas/task.js";
+
+export class TaskController {
+  static async getAll(req, res) {
+    const tasks = await TaskModel.getAll();
+    res.status(200).json(tasks);
+  }
+
+  static async getById(req, res) {
+    const { id } = req.params;
+    const task = await TaskModel.getById(id);
+    if (!task) {
+      res.status(404).json({ message: "Task not found" });
+    }
+    res.status(200).json(task);
+  }
+
+  static async create(req, res) {
+    const validate = validateTask(req.body);
+    if (validate.error) {
+      res.status(400).json(validate.error);
+    }
+    const newTask = TaskModel.create({ input: validate.data });
+    res.status(201).json(newTask);
+  }
+
+  static async delete(req, res) {
+    const { id } = req.params;
+    const result = await TaskModel.delete(id);
+    if (result === false) {
+      res.status(404).json({ message: "Task not found" });
+    }
+    res.status(204).end();
+  }
+
+  static async update(req, res) {
+    const validate = validatePartialTask(req.body);
+    if (validate.error) {
+      res.status(400).json({ error: "Datos no validos o incompletos" });
+    }
+
+    const { id } = req.params;
+    const updatedTask = await TaskModel.update(id, validate.data);
+    if (!updatedTask) {
+      res.status(404).json({ message: "Task not found" });
+    }
+    res.status(200).json(updatedTask);
+  }
+}
+```
+</CodeGroup>
+
+<Accordion title="Controller Responsibilities">
+- **Request Parsing**: Extract data from `req.params`, `req.body`, and `req.query`
+- **Validation**: Use Zod schemas to validate incoming data
+- **Business Logic Delegation**: Call models and services for data operations
+- **Response Formatting**: Send appropriate HTTP status codes and JSON responses
+- **Error Handling**: Handle validation errors and not-found scenarios
+</Accordion>
+
+### Category Controller
+
+<CodeGroup>
+```javascript src/controllers/taskCategory.js
+import { TaskCategoryModel } from "../models/taskCategory.js";
+import { validateTaskCategory } from "../schemas/taskCategory.js";
+import { TaskCategoryService } from "../services/taskCategory.js";
+
+export class TaskCategoryController {
+  static async create(req, res) {
+    const validate = validateTaskCategory(req.body);
+    if (validate.error) {
+      res.status(400).json(validate.error);
+      return;
+    }
+
+    try {
+      const newCategory = TaskCategoryModel.create({ input: validate.data });
+      res.status(201).json(newCategory);
+    } catch (error) {
+      console.error("[CategoryController Error]:", error);
+      return res.status(500).json({ 
+        error: "No se pudo crear la categoría en el servidor" 
+      });
+    }
+  }
+
+  static async delete(req, res) {
+    const { categoriesIds } = req.body;
+    if (!Array.isArray(categoriesIds)) {
+      return res.status(400).json({ error: "Datos no validos, se esperaba un array" });
+    }
+
+    try {
+      const result = await TaskCategoryService.deleteCategories(categoriesIds);
+      if (result === false) {
+        return res.status(404).json({ message: "Categories not found" });
+      }
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error en CategoryController.delete:", error);
+      return res.status(500).json({ 
+        message: "Error interno al procesar el borrado masivo" 
+      });
+    }
+  }
+}
+```
+</CodeGroup>
+
+<Tip>
+The category delete operation uses a **service layer** (`TaskCategoryService`) because it involves complex business logic: updating all tasks in the deleted categories before removing the categories themselves.
+</Tip>
+
+## Models
+
+Models provide the data access layer and interact directly with the database.
+
+### Task Model
+
+<CodeGroup>
+```javascript src/models/task.js
+import { randomUUID } from "node:crypto";
+import { Tasks } from "../DB/DB_schemas.js";
+
+export class TaskModel {
+  static create({ input }) {
+    const newTask = {
+      _id: randomUUID(),
+      title: input.title,
+      description: input.description,
+      categoryId: input.categoryId,
+      createdAt: new Date().toISOString(),
+      completed: input.completed,
+    };
+    Tasks.create(newTask).save();
+    return newTask;
+  }
+
+  static async update(taskId, input) {
+    const taskExists = await this.getById(taskId);
+    if (!taskExists) {
+      return null;
+    }
+
+    // Filter out undefined values
+    const { title, description, categoryId, completed, createdAt, updatedAt, finishedAt } = input;
+    const inputData = { title, description, categoryId, completed, createdAt, updatedAt, finishedAt };
+    
+    const cleanInputData = Object.fromEntries(
+      Object.entries(inputData).filter(([_, value]) => value !== undefined),
+    );
+    
+    // Always update the updatedAt timestamp
+    cleanInputData.updatedAt = new Date().toISOString();
+
+    // Handle completed status change and finishedAt timestamp
+    if ("completed" in cleanInputData) {
+      const newCompleted = cleanInputData.completed;
+      const oldCompleted = !!taskExists.completed;
+
+      if (oldCompleted === false && newCompleted === true) {
+        cleanInputData.finishedAt = new Date().toISOString();
+      }
+      if (oldCompleted === true && newCompleted === false) {
+        delete taskExists.finishedAt;
+      }
+    }
+
+    await taskExists.update(cleanInputData).save();
+    const fullTask = await this.getById(taskId);
+    return fullTask;
+  }
+
+  static async updateMany(propiedad, values, newValue) {
+    const filterQuery = { [propiedad]: { $in: values } };
+    const tasksToUpdate = await Tasks.find(filterQuery);
+    if (tasksToUpdate.length === 0) return 0;
+
+    tasksToUpdate.forEach((task) => {
+      task
+        .update({
+          [propiedad]: newValue,
+          updatedAt: new Date().toISOString(),
+        })
+        .save();
+    });
+    return tasksToUpdate.length;
+  }
+
+  static async delete(taskId) {
+    const taskExists = await this.getById(taskId);
+    if (!taskExists) {
+      return false;
+    }
+    Tasks.remove(taskId);
+    return taskId;
+  }
+
+  static async getById(taskId) {
+    return await Tasks.findOne({ _id: taskId });
+  }
+
+  static async getAll(filters = {}) {
+    return await Tasks.find(filters);
+  }
+}
+```
+</CodeGroup>
+
+<Info>
+**Key Model Features:**
+- **UUID Generation**: Uses Node.js `crypto.randomUUID()` for unique identifiers
+- **Timestamp Management**: Automatically handles `createdAt`, `updatedAt`, and `finishedAt`
+- **Smart Updates**: Filters undefined values and intelligently manages completion status
+- **Batch Operations**: Supports updating multiple tasks at once with `updateMany()`
+</Info>
+
+### Category Model
+
+<CodeGroup>
+```javascript src/models/taskCategory.js
+import { randomUUID } from "node:crypto";
+import { TaskCategories } from "../DB/DB_schemas.js";
+
+export class TaskCategoryModel {
+  static create({ input }) {
+    try {
+      const newCategory = {
+        _id: randomUUID(),
+        name: input.name,
+      };
+      TaskCategories.create(newCategory).save();
+      return newCategory;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  static async update(taskCategoryId, input) {
+    const categoryExists = await this.getById(taskCategoryId);
+    if (!categoryExists) {
+      return null;
+    }
+    await categoryExists.update(input).save();
+    const categoryUpdated = await this.getById(taskCategoryId);
+    return categoryUpdated;
+  }
+
+  static async delete(taskCategoriesId) {
+    const categoriesToDelete = await TaskCategories.find({"_id": {$in: taskCategoriesId}});
+    if (!categoriesToDelete) return false;
+
+    try {
+      categoriesToDelete.forEach((category) => {
+        TaskCategories.remove(category._id);
+      }); 
+    } catch (error) {
+      return error;
+    }
+  }
+
+  static async getById(taskCategoryId) {
+    return await TaskCategories.findOne({ _id: taskCategoryId });
+  }
+
+  static async getAll(filters = {}) {
+    return await TaskCategories.find(filters);
+  }
+}
+```
+</CodeGroup>
+
+## Validation with Zod
+
+Zod provides type-safe schema validation for incoming requests.
+
+### Task Schema
+
+<CodeGroup>
+```javascript src/schemas/task.js
+import z from 'zod';
+
+const taskSchema = z.object({
+  title: z.string().min(3).max(25),
+  description: z.string().max(25).optional(),
+  completed: z.boolean().optional(),
+  categoryId: z.string().optional(),
+  createdAt: z.string().optional().refine(v => !v || !isNaN(Date.parse(v)), {
+    message: "Invalid date format createAt"
+  }),
+  updatedAt: z.string().optional().refine(v => !v || !isNaN(Date.parse(v)), {
+    message: "Invalid date format updateAt"
+  }),
+  finishedAt: z.string().optional().refine(v => !v || !isNaN(Date.parse(v)), {
+    message: "Invalid date format finishedAt"
+  })
+});
+
+export function validateTask(input) {
+  return taskSchema.safeParse(input);
+}
+
+export function validatePartialTask(input) {
+  return taskSchema.partial().safeParse(input);
+}
+```
+</CodeGroup>
+
+<Accordion title="Schema Validation Rules">
+**Task Validation:**
+- `title`: Required, 3-25 characters
+- `description`: Optional, max 25 characters
+- `completed`: Optional boolean
+- `categoryId`: Optional string
+- `createdAt`, `updatedAt`, `finishedAt`: Optional ISO date strings with custom validation
+
+**Partial Validation:**
+The `validatePartialTask` function uses Zod's `.partial()` method, making all fields optional for update operations.
+</Accordion>
+
+### Category Schema
+
+<CodeGroup>
+```javascript src/schemas/taskCategory.js
+import z from 'zod';
+
+const taskCategorySchema = z.object({
+  name: z.string().min(2).max(25)
+});
+
+export function validateTaskCategory(input) {
+  return taskCategorySchema.safeParse(input);
+}
+```
+</CodeGroup>
+
+## Services Layer
+
+Services contain complex business logic that spans multiple models.
+
+<CodeGroup>
+```javascript src/services/taskCategory.js
+import { TaskModel } from "../models/task.js";
+import { TaskCategoryModel } from "../models/taskCategory.js";
+
+export class TaskCategoryService {
+  static async deleteCategories(categoriesId) {
+    // Update tasks with deleted categories to "uncategorized"
+    await TaskModel.updateMany("categoryId", categoriesId, "uncategorized");
+    
+    // Delete the categories
+    const result = await TaskCategoryModel.delete(categoriesId);
+    return result !== false;
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+The `deleteCategories` service method demonstrates a **transactional operation**: before deleting categories, it updates all associated tasks to prevent orphaned references.
+</Note>
+
+## Middleware
+
+### CORS Configuration
+
+<CodeGroup>
+```javascript src/middlewares/cors.js
+import cors from 'cors';
+
+const ACCEPTED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
+export const corsMiddleware = ({acceptedOrigins = ACCEPTED_ORIGINS} = {}) => cors({
+  origin: (origin, callback) => {
+    if (acceptedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Allow requests without origin (same-site requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    return callback(new Error('No permitido por CORS'));
+  }
+});
+```
+</CodeGroup>
+
+<Info>
+The CORS middleware allows requests from localhost and same-origin requests (server-rendered pages). This is configurable through the `acceptedOrigins` parameter.
+</Info>
+
+## Error Handling
+
+The application uses consistent error handling patterns:
+
+<Steps>
+  <Step title="Validation Errors">
+    **Status Code: 400**
+    
+    Returned when Zod validation fails or input is malformed.
+    ```json
+    { "error": "Datos no validos o incompletos" }
+    ```
+  </Step>
+  
+  <Step title="Not Found Errors">
+    **Status Code: 404**
+    
+    Returned when a resource doesn't exist.
+    ```json
+    { "message": "Task not found" }
+    ```
+  </Step>
+  
+  <Step title="Server Errors">
+    **Status Code: 500**
+    
+    Returned when an unexpected error occurs.
+    ```json
+    { "error": "No se pudo crear la categoría en el servidor" }
+    ```
+  </Step>
+  
+  <Step title="Success Responses">
+    **Status Codes: 200, 201, 204**
+    
+    - `200`: Successful read/update
+    - `201`: Successful creation
+    - `204`: Successful deletion (no content)
+  </Step>
+</Steps>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Static Methods" icon="code">
+    Controllers and models use static methods since they don't maintain instance state, making them lightweight and easy to test.
+  </Card>
+  
+  <Card title="Async/Await" icon="clock">
+    All database operations use async/await for clean, readable asynchronous code.
+  </Card>
+  
+  <Card title="Input Sanitization" icon="shield">
+    Zod schemas provide input validation and type safety, preventing invalid data from reaching the database.
+  </Card>
+  
+  <Card title="Separation of Concerns" icon="layer-group">
+    Clear separation between routes, controllers, models, and services makes the codebase maintainable and testable.
+  </Card>
+</CardGroup>

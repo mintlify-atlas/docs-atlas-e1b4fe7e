@@ -1,0 +1,235 @@
+---
+title: 'Get Task by ID'
+api: 'GET /api/tasks/:id'
+description: 'Retrieve a specific task by its unique identifier'
+---
+
+## Endpoint
+
+```
+GET /api/tasks/:id
+```
+
+Retrieves a single task by its UUID. Returns the complete task object with all properties.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier (UUID) of the task to retrieve.
+  
+  Example: `550e8400-e29b-41d4-a716-446655440000`
+</ParamField>
+
+## Response
+
+<ResponseField name="_id" type="string">
+  Unique identifier (UUID v4) of the task.
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The task title (3-25 characters).
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Optional task description (max 25 characters).
+</ResponseField>
+
+<ResponseField name="completed" type="boolean">
+  Completion status of the task.
+</ResponseField>
+
+<ResponseField name="categoryId" type="string">
+  UUID of the assigned category or `"uncategorized"`.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of task creation.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp of last update.
+</ResponseField>
+
+<ResponseField name="finishedAt" type="string | null">
+  ISO 8601 timestamp when task was completed, or `null` if incomplete.
+</ResponseField>
+
+## Status Codes
+
+- **200 OK** - Task found and returned successfully
+- **404 Not Found** - No task exists with the provided ID
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:3000/api/tasks/550e8400-e29b-41d4-a716-446655440000
+```
+
+```javascript JavaScript Fetch
+const taskId = '550e8400-e29b-41d4-a716-446655440000';
+const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+
+if (response.ok) {
+  const task = await response.json();
+  console.log(task);
+} else if (response.status === 404) {
+  console.log('Task not found');
+}
+```
+
+```javascript JavaScript with Error Handling
+async function getTask(taskId) {
+  try {
+    const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+    
+    if (response.status === 404) {
+      console.error('Task not found');
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const task = await response.json();
+    return task;
+    
+  } catch (error) {
+    console.error('Error fetching task:', error);
+    return null;
+  }
+}
+
+// Usage
+const task = await getTask('550e8400-e29b-41d4-a716-446655440000');
+if (task) {
+  console.log(`Task: ${task.title}`);
+  console.log(`Status: ${task.completed ? 'Completed' : 'Pending'}`);
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 200 OK - Completed Task
+{
+  "_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Write API documentation",
+  "description": "Create comprehensive docs",
+  "completed": true,
+  "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "createdAt": "2026-03-11T10:00:00.000Z",
+  "updatedAt": "2026-03-11T16:00:00.000Z",
+  "finishedAt": "2026-03-11T16:00:00.000Z"
+}
+```
+
+```json 200 OK - Pending Task
+{
+  "_id": "d4c3b2a1-0f1e-4d3c-9b8a-7c6b5a4d3e2f",
+  "title": "Review pull request",
+  "description": "Check code quality",
+  "completed": false,
+  "categoryId": "uncategorized",
+  "createdAt": "2026-03-11T12:00:00.000Z",
+  "updatedAt": "2026-03-11T12:00:00.000Z"
+}
+```
+
+```json 404 Not Found
+{
+  "message": "Task not found"
+}
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+<Warning>
+  The task ID must be a valid UUID v4 format. Invalid formats will result in the task not being found (404 response).
+</Warning>
+
+<Info>
+  This endpoint is useful for:
+  - Displaying task details in a detail view
+  - Verifying task existence before performing operations
+  - Refreshing task data after updates
+</Info>
+
+## Common Use Cases
+
+### Check if Task Exists
+
+```javascript
+async function taskExists(taskId) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+  return response.status === 200;
+}
+
+if (await taskExists('550e8400-e29b-41d4-a716-446655440000')) {
+  console.log('Task exists!');
+}
+```
+
+### Get Task with Category Details
+
+```javascript
+async function getTaskWithCategory(taskId) {
+  const taskResponse = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+  
+  if (!taskResponse.ok) {
+    return null;
+  }
+  
+  const task = await taskResponse.json();
+  
+  // If task has a category, fetch category details
+  if (task.categoryId && task.categoryId !== 'uncategorized') {
+    const categoryResponse = await fetch(
+      `http://localhost:3000/api/taskCategories/${task.categoryId}`
+    );
+    
+    if (categoryResponse.ok) {
+      task.category = await categoryResponse.json();
+    }
+  }
+  
+  return task;
+}
+```
+
+### Display Task Status
+
+```javascript
+async function displayTaskStatus(taskId) {
+  const response = await fetch(`http://localhost:3000/api/tasks/${taskId}`);
+  
+  if (response.status === 404) {
+    console.log('Task not found');
+    return;
+  }
+  
+  const task = await response.json();
+  
+  console.log(`Task: ${task.title}`);
+  console.log(`Status: ${task.completed ? '✓ Completed' : '○ Pending'}`);
+  
+  if (task.finishedAt) {
+    const finishedDate = new Date(task.finishedAt);
+    console.log(`Finished: ${finishedDate.toLocaleString()}`);
+  }
+}
+```
+
+## Related Endpoints
+
+- [Get All Tasks](/api/tasks/get-all) - Retrieve all tasks
+- [Create Task](/api/tasks/create) - Create a new task
+- [Update Task](/api/tasks/update) - Modify this task
+- [Delete Task](/api/tasks/delete) - Remove this task

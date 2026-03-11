@@ -1,80 +1,534 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart Guide
+description: Get Task Manager running locally in minutes and create your first task via both the API and web interface
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Before you begin, ensure you have the following installed:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Node.js" icon="node-js">
+    Version 18 or higher
+  </Card>
+  <Card title="npm" icon="npm">
+    Version 9 or higher
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Tip>
+Verify your installations by running `node --version` and `npm --version` in your terminal.
+</Tip>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    First, clone the Task Manager repository to your local machine:
+    
+    ```bash
+    git clone https://github.com/JoseJavega/taskManager.git
+    cd taskManager
+    ```
+    
+    This downloads the complete application including both the API backend and web frontend.
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required npm packages:
+    
+    ```bash
+    npm install
+    ```
+    
+    This installs:
+    - **express** (5.1.0) - Web framework
+    - **db-local** (3.1.0) - JSON database
+    - **zod** (4.1.12) - Schema validation
+    - **cors** (2.8.5) - Cross-origin support
+    - **dotenv** (17.2.3) - Environment configuration
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env` file in the project root directory:
+    
+    ```bash
+    touch .env
+    ```
+    
+    Add the following configuration:
+    
+    ```bash
+    PORT=3000
+    ```
+    
+    <Note>
+    The PORT variable determines which port the Express server listens on. You can change this to any available port if 3000 is already in use.
+    </Note>
+  </Step>
+
+  <Step title="Start the Server">
+    Launch the application in development mode:
+    
+    ```bash
+    npm run dev
+    ```
+    
+    You should see:
+    
+    ```
+    servidor corriendo en el puerto:3000
+    ```
+    
+    <Info>
+    Development mode uses Node.js watch mode (`--watch` flag), automatically restarting the server when source files change.
+    </Info>
+    
+    For production, use:
+    
+    ```bash
+    npm start
+    ```
+  </Step>
+
+  <Step title="Verify Installation">
+    Open your browser and navigate to:
+    
+    ```
+    http://localhost:3000
+    ```
+    
+    You should see the Task Manager web interface with "Gestor de tareas" as the header.
+    
+    To verify the API is responding, visit:
+    
+    ```
+    http://localhost:3000/api/tasks
+    ```
+    
+    You should receive an empty JSON array: `[]`
+  </Step>
+</Steps>
+
+## Creating Your First Task
+
+Now that Task Manager is running, let's create a task using both the API and the web interface.
+
+### Option 1: Using the REST API
+
+<Steps>
+  <Step title="Create a Task via POST Request">
+    Use curl or any HTTP client to create your first task:
+    
+    <CodeGroup>
+    ```bash curl
+    curl -X POST http://localhost:3000/api/tasks \
+      -H "Content-Type: application/json" \
+      -d '{
+        "title": "My First Task",
+        "description": "Learning Task Manager",
+        "completed": false
+      }'
+    ```
+    
+    ```javascript fetch
+    fetch('http://localhost:3000/api/tasks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: 'My First Task',
+        description: 'Learning Task Manager',
+        completed: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => console.log(data));
+    ```
+    
+    ```python requests
+    import requests
+    
+    response = requests.post(
+      'http://localhost:3000/api/tasks',
+      json={
+        'title': 'My First Task',
+        'description': 'Learning Task Manager',
+        'completed': False
+      }
+    )
+    print(response.json())
+    ```
+    </CodeGroup>
+    
+    The API validates your request using the Zod schema defined in `src/schemas/task.js:3`:
+    
+    ```javascript
+    const taskSchema = z.object({
+      title: z.string().min(3).max(25),
+      description: z.string().max(25).optional(),
+      completed: z.boolean().optional(),
+      categoryId: z.string().optional()
+    });
+    ```
+  </Step>
+
+  <Step title="Examine the Response">
+    The API returns a 201 Created status with the complete task object:
+    
+    ```json
+    {
+      "_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "title": "My First Task",
+      "description": "Learning Task Manager",
+      "completed": false,
+      "categoryId": "",
+      "createdAt": "2026-03-11T10:30:00.123Z"
+    }
+    ```
+    
+    Notice:
+    - `_id` is automatically generated using UUID v4 (`src/models/task.js:7`)
+    - `createdAt` timestamp is set automatically
+    - `categoryId` defaults to empty string ("uncategorized")
+    - `completed` is false as specified
+  </Step>
+
+  <Step title="Retrieve All Tasks">
+    Verify your task was created by fetching all tasks:
+    
+    ```bash
+    curl http://localhost:3000/api/tasks
+    ```
+    
+    Response:
+    
+    ```json
+    [
+      {
+        "_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+        "title": "My First Task",
+        "description": "Learning Task Manager",
+        "completed": false,
+        "categoryId": "",
+        "createdAt": "2026-03-11T10:30:00.123Z"
+      }
+    ]
+    ```
+  </Step>
+
+  <Step title="Update the Task">
+    Mark your task as completed using PATCH:
+    
+    ```bash
+    curl -X PATCH http://localhost:3000/api/tasks/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d \
+      -H "Content-Type: application/json" \
+      -d '{"completed": true}'
+    ```
+    
+    The response now includes automatic timestamps:
+    
+    ```json
+    {
+      "_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "title": "My First Task",
+      "description": "Learning Task Manager",
+      "completed": true,
+      "categoryId": "",
+      "createdAt": "2026-03-11T10:30:00.123Z",
+      "updatedAt": "2026-03-11T10:35:22.456Z",
+      "finishedAt": "2026-03-11T10:35:22.456Z"
+    }
+    ```
+    
+    <Info>
+    The `finishedAt` timestamp is automatically set when `completed` changes from `false` to `true` (logic in `src/models/task.js:57`).
+    </Info>
+  </Step>
+</Steps>
+
+### Option 2: Using the Web Interface
+
+<Steps>
+  <Step title="Open the Application">
+    Navigate to `http://localhost:3000` in your browser. You'll see the main task management interface with:
+    
+    - Header: "Gestor de tareas"
+    - "+ Crear tarea" button
+    - "Gestionar Categorías" button
+    - Empty task list (initially)
+  </Step>
+
+  <Step title="Click Create Task">
+    Click the green "+ Crear tarea" button. This opens a modal dialog with a task form.
+    
+    The modal is managed by `public/js/controllers/Modal.js` and the form is rendered by `public/js/views/Task.js`.
+  </Step>
+
+  <Step title="Fill in Task Details">
+    In the modal form, enter:
+    
+    - **Title**: "My First Task" (required, 3-25 characters)
+    - **Description**: "Learning Task Manager" (optional, max 25 characters)
+    - **Finished**: Leave unchecked (defaults to false)
+    - **Category**: Select "uncategorized" (default option)
+    
+    <Warning>
+    The title field enforces a minimum of 3 characters and maximum of 25 characters. The form will display validation errors if these constraints aren't met.
+    </Warning>
+  </Step>
+
+  <Step title="Save the Task">
+    Click the "Guardar" (Save) button. The form data is sent to the API using the TaskService class (`public/js/services/Task.js:26`):
+    
+    ```javascript
+    async save(data) {
+      const taskCompleted = data.finished === "on" ? true : false;
+      const categoryId = data.categoryId === "uncategorized" ? "" : data.categoryId;
+      
+      const result = await fetch(`${this.apiClient}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          completed: taskCompleted,
+          categoryId: categoryId
+        })
+      });
+      
+      return await result.json();
+    }
+    ```
+    
+    The modal closes and your new task appears in the task list.
+  </Step>
+
+  <Step title="Interact with Your Task">
+    Your task now appears in the interface. You can:
+    
+    - **View details** - Click on the task to see full information
+    - **Mark complete** - Check the completion checkbox to update status
+    - **Edit** - Click the edit icon to modify title or description
+    - **Delete** - Click the delete icon to remove the task
+    
+    All interactions trigger API calls through the TaskService class and update the UI in real-time.
+  </Step>
+</Steps>
+
+## Working with Categories
+
+Organize your tasks using categories:
+
+<Steps>
+  <Step title="Create a Category">
+    Using the API:
+    
+    ```bash
+    curl -X POST http://localhost:3000/api/taskCategories \
+      -H "Content-Type: application/json" \
+      -d '{"name": "Work"}'
+    ```
+    
+    Response:
+    
+    ```json
+    {
+      "_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Work"
+    }
+    ```
+  </Step>
+
+  <Step title="Assign Task to Category">
+    Create a task with a category:
+    
+    ```bash
+    curl -X POST http://localhost:3000/api/tasks \
+      -H "Content-Type: application/json" \
+      -d '{
+        "title": "Prepare meeting",
+        "description": "Q1 Review slides",
+        "categoryId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+      }'
+    ```
+  </Step>
+
+  <Step title="Filter Tasks by Category">
+    Retrieve all tasks in a specific category:
+    
+    ```bash
+    curl "http://localhost:3000/api/tasks?categoryId=b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+    ```
+    
+    The model's `getAll` method (`src/models/task.js:100`) supports category filtering:
+    
+    ```javascript
+    static async getAll(filters = {}) {
+      const query = {};
+      if (filters.categoryId) {
+        query.categoryId = filters.categoryId;
+      }
+      return await Tasks.find(filters);
+    }
+    ```
+  </Step>
+</Steps>
+
+## Common API Operations
+
+Here's a quick reference for essential API operations:
+
+<CardGroup cols={2}>
+  <Card title="Get All Tasks" icon="list">
+    ```bash
+    GET /api/tasks
+    ```
+  </Card>
+  
+  <Card title="Get Single Task" icon="file">
+    ```bash
+    GET /api/tasks/:id
+    ```
+  </Card>
+  
+  <Card title="Create Task" icon="plus">
+    ```bash
+    POST /api/tasks
+    Body: {title, description?, completed?, categoryId?}
+    ```
+  </Card>
+  
+  <Card title="Update Task" icon="pen">
+    ```bash
+    PATCH /api/tasks/:id
+    Body: {any task fields to update}
+    ```
+  </Card>
+  
+  <Card title="Delete Task" icon="trash">
+    ```bash
+    DELETE /api/tasks/:id
+    ```
+  </Card>
+  
+  <Card title="List Categories" icon="folder">
+    ```bash
+    GET /api/taskCategories
+    ```
+  </Card>
+</CardGroup>
+
+## Validation and Error Handling
+
+Task Manager uses Zod for runtime validation. Understanding validation helps you handle errors gracefully:
+
+### Common Validation Errors
+
+<AccordionGroup>
+  <Accordion title="Title Too Short">
+    **Error**: Title must be at least 3 characters
+    
+    ```bash
+    curl -X POST http://localhost:3000/api/tasks \
+      -H "Content-Type: application/json" \
+      -d '{"title": "Hi"}'
+    ```
+    
+    **Response**: `400 Bad Request` with Zod error details
+  </Accordion>
+  
+  <Accordion title="Title Too Long">
+    **Error**: Title cannot exceed 25 characters
+    
+    ```bash
+    curl -X POST http://localhost:3000/api/tasks \
+      -H "Content-Type: application/json" \
+      -d '{"title": "This is a very long title that exceeds the limit"}'
+    ```
+    
+    **Response**: `400 Bad Request`
+  </Accordion>
+  
+  <Accordion title="Task Not Found">
+    **Error**: Attempting to update or delete a non-existent task
+    
+    ```bash
+    curl -X DELETE http://localhost:3000/api/tasks/invalid-uuid
+    ```
+    
+    **Response**: `404 Not Found` with message "Task not found"
+    
+    This check happens in the controller (`src/controllers/task.js:14`):
+    
+    ```javascript
+    const task = await TaskModel.getById(id);
+    if (!task) {
+      res.status(404).json({ message: "Task not found" });
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have Task Manager running:
+
+<CardGroup cols={2}>
+  <Card title="Explore the API" icon="book" href="/api/overview">
+    Learn about all available endpoints, request formats, and response codes
+  </Card>
+  
+  <Card title="Architecture Deep Dive" icon="diagram-project" href="/architecture/overview">
+    Understand the modular design and how components interact
+  </Card>
+  
+  <Card title="Task Management Features" icon="list-check" href="/features/task-management">
+    Learn about task CRUD operations and completion tracking
+  </Card>
+  
+  <Card title="Category Management" icon="folder-tree" href="/features/categories">
+    Organize your tasks with custom categories
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port Already in Use">
+    If port 3000 is already in use:
+    
+    1. Change the PORT in your `.env` file
+    2. Restart the server
+    3. Update the API base URL in `public/js/config.js` if accessing the frontend
+  </Accordion>
+  
+  <Accordion title="Database Not Persisting">
+    Ensure the `./src/DB/` directory exists and is writable. The db-local library creates JSON files here:
+    
+    ```bash
+    ls -la src/DB/
+    # Should show tasks.json and taskCategories.json after first use
+    ```
+  </Accordion>
+  
+  <Accordion title="CORS Errors in Browser">
+    The application includes CORS middleware (`src/middlewares/cors.js`). If you're accessing from a different origin, you may need to configure allowed origins.
+  </Accordion>
+  
+  <Accordion title="Module Not Found Errors">
+    Ensure all dependencies are installed:
+    
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+For additional help, check the project's [GitHub repository](https://github.com/JoseJavega/taskManager) or review the detailed API documentation in `src/API.md`.
+</Tip>

@@ -1,0 +1,758 @@
+---
+title: 'Frontend UI Architecture'
+description: 'Vanilla JavaScript frontend with MVC pattern, controllers, views, services, and UI components'
+icon: 'browser'
+---
+
+## Overview
+
+The Task Manager frontend is built with vanilla JavaScript following an MVC (Model-View-Controller) pattern. It features a clean separation of concerns with controllers handling business logic, views managing DOM manipulation, and services communicating with the backend API.
+
+## Architecture Overview
+
+<Tabs>
+  <Tab title="Application Structure">
+    ```plaintext
+    public/js/
+    ├── controllers/      # Business logic and event handling
+    │   ├── App.js        # Main application controller
+    │   ├── Task.js       # Task management logic
+    │   ├── TaskCategory.js
+    │   ├── Modal.js      # Modal dialog controller
+    │   └── Aside.js      # Sidebar panel controller
+    ├── views/           # DOM manipulation and rendering
+    │   ├── Task.js      # Task card rendering
+    │   └── TaskCategory.js
+    ├── services/        # API communication
+    │   ├── Task.js      # Task API calls
+    │   └── TaskCategory.js
+    ├── utils/           # Helper functions
+    │   ├── formatDate.js
+    │   ├── sortCollection.js
+    │   └── dinamicSelect.js
+    ├── config.js        # Configuration
+    └── main.js         # Application entry point
+    ```
+  </Tab>
+  
+  <Tab title="Data Flow">
+    ```mermaid
+    graph TD
+      A[User Interaction] --> B[Controller]
+      B --> C[Service]
+      C --> D[Backend API]
+      D --> E[Database]
+      E --> D
+      D --> C
+      C --> B
+      B --> F[View]
+      F --> G[DOM Update]
+    ```
+  </Tab>
+</Tabs>
+
+## Application Bootstrap
+
+### Main Entry Point
+
+```javascript ~/workspace/source/public/js/main.js
+import { AppController } from './controllers/App.js';
+
+const appController = new AppController();
+appController.init();
+```
+
+### App Controller
+
+The `AppController` orchestrates all sub-controllers:
+
+```javascript ~/workspace/source/public/js/controllers/App.js
+import { API_URL } from '../config.js';
+import { TaskController } from './Task.js';
+import { TaskCategoryController } from './TaskCategory.js';
+
+export class AppController {
+  constructor() {
+    this.taskController = new TaskController(API_URL, 'tasks-section');
+    this.taskCategoryController = new TaskCategoryController(API_URL);
+  }
+
+  async init() {
+    await this.taskController.init();
+  }
+}
+```
+
+<Info>
+  The application follows a dependency injection pattern, passing the API URL and container IDs to controllers during initialization.
+</Info>
+
+## Task Controller
+
+### Initialization and State Management
+
+```javascript ~/workspace/source/public/js/controllers/Task.js
+import { TasksView } from "../views/Task.js";
+import { TaskService } from "../services/Task.js";
+import { TaskCategoryService } from "../services/TaskCategory.js";
+import { sortCollection } from "../utils/sortCollection.js";
+
+export class TaskController {
+  constructor(apiUrl, containerId) {
+    this.taskService = new TaskService(apiUrl);
+    this.taskCategoryService = new TaskCategoryService(apiUrl);
+    this.container = document.getElementById(containerId);
+    
+    // Sort configuration
+    this.sortTasksBy = 'title';
+    this.sortTasksDirection = 'asc';
+    this.sortCategoriesBy = 'name';
+    this.sortCategoriesDirection = 'asc';
+
+    this.addEventListeners();
+  }
+
+  async init() {
+    await TasksView.resetTasksList();
+    
+    // Render categories
+    const categories = await this.getPreparedCategory();
+    if (!categories) return;
+    categories.forEach(element => {
+      TasksView.renderCategory(element);
+    });
+
+    // Render tasks
+    const tasks = await this.taskService.getAll();
+    if (!tasks || tasks.length === 0) return;
+
+    const orderTasks = sortCollection(tasks, this.sortTasksBy, this.sortTasksDirection);
+    orderTasks.forEach(element => {
+      TasksView.renderCard(element);
+    });
+  }
+}
+```
+
+### Event Handling Pattern
+
+The controller uses event delegation for efficient event handling:
+
+```javascript ~/workspace/source/public/js/controllers/Task.js
+async handleClickEvent(e) {
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  const taskCard = e.target.closest('.task-card');
+  const taskId = taskCard?.dataset?.id ? taskCard.dataset.id : null;
+
+  if (!action) { return }
+  
+  // CRUD operations
+  switch (action) {
+    case 'create':
+      TasksView.openModal(await this.getPreparedCategory());
+      break;
+    case 'edit':
+      TasksView.openModal(
+        await this.getPreparedCategory(), 
+        await this.taskService.getById(taskId)
+      );
+      break;
+    case 'delete':
+      TasksView.openModalConfirmation(await this.taskService.getById(taskId));
+      break;
+    case 'finish':
+      const isCompleted = taskCard.classList.contains('completed');
+      const data = { id: taskId, finished: isCompleted ? '' : 'on' }
+      const updatedTask = await this.taskService.update(data);
+      TasksView.deleteCard(updatedTask._id);
+      TasksView.renderCard(updatedTask);
+      break;
+  }
+}
+```
+
+<Note>
+  Using `data-action` attributes enables clean event delegation without requiring individual event listeners on each button.
+</Note>
+
+### Modal Event Integration
+
+```javascript ~/workspace/source/public/js/controllers/Task.js
+async handleModalEvent(e) {
+  const { type, action, data } = e.detail;
+  if (type !== 'task') return;
+  
+  if (action === 'create') {
+    const createdTask = await this.taskService.save(data);
+    if (createdTask) { TasksView.renderCard(createdTask); }
+  }
+  
+  if (action === 'update') {
+    const updatedTask = await this.taskService.update(data)
+    if (updatedTask) {
+      TasksView.deleteCard(updatedTask._id);
+      TasksView.renderCard(updatedTask);
+    }
+  }
+  
+  if (action === 'delete') {
+    const deleted = await this.taskService.delete(data.id)
+    if (deleted) { TasksView.deleteCard(deleted); }
+  }
+}
+```
+
+### Event Listener Registration
+
+```javascript ~/workspace/source/public/js/controllers/Task.js
+addEventListeners() {
+  this.container.addEventListener('click', this.handleClickEvent.bind(this));
+  window.addEventListener('modal:confirm', (e) => this.handleModalEvent(e));
+  window.addEventListener('categoryUpdated', (e) => this.init());
+}
+```
+
+<Tip>
+  The `categoryUpdated` event listener automatically refreshes the task list when categories change, ensuring UI consistency.
+</Tip>
+
+## Task Service Layer
+
+### API Communication
+
+```javascript ~/workspace/source/public/js/services/Task.js
+export class TaskService {
+  constructor(apiUrl) {
+    this.apiClient = `${apiUrl}/tasks`;
+  }
+
+  async getAll() {
+    try {
+      const result = await fetch(this.apiClient);
+      const data = await result.json();
+      return data;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async getById(id) {
+    try {
+      const result = await fetch(`${this.apiClient}/${id}`);
+      const data = await result.json();
+      return data;
+    } catch (error) {
+      console.log("error:", error);
+    }
+  }
+}
+```
+
+### Create Operation
+
+```javascript ~/workspace/source/public/js/services/Task.js
+async save(data) {
+  if (!data) return;
+  
+  const taskCompleted = data.finished === "on" ? true : false;
+  const categoryId = data.categoryId === "uncategorized" ? "" : data.categoryId;
+
+  try {
+    const result = await fetch(`${this.apiClient}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        completed: taskCompleted,
+        categoryId: categoryId,
+      }),
+    });
+
+    const newTask = await result.json();
+    return newTask;
+  } catch (error) {
+    console.error(error);
+  }
+}
+```
+
+<Info>
+  The service layer transforms form data (checkbox "on" values) into proper boolean values before sending to the API.
+</Info>
+
+### Update Operation
+
+```javascript ~/workspace/source/public/js/services/Task.js
+async update(data) {
+  if (!data.id) return;
+  
+  const taskCompleted = data.finished === "on" ? true : false;
+  const categoryId = data.categoryId === "uncategorized" ? "" : data.categoryId;
+
+  try {
+    const result = await fetch(`${this.apiClient}/${data.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        completed: taskCompleted,
+        categoryId: categoryId,
+      }),
+    });
+
+    const updatedTask = await result.json();
+    return updatedTask;
+  } catch (error) {
+    console.log(error);
+  }
+}
+```
+
+### Delete Operation
+
+```javascript ~/workspace/source/public/js/services/Task.js
+async delete(id) {
+  try {
+    await fetch(`${this.apiClient}/${id}`, {
+      method: "DELETE",
+    });
+    return id;
+  } catch (error) {
+    throw new Error(error);
+  }
+}
+```
+
+## Task View Layer
+
+### Rendering Task Cards
+
+```javascript ~/workspace/source/public/js/views/Task.js
+import { formatDate } from "../utils/formatDate.js";
+
+export class TasksView {
+  static renderCard(input) {
+    if (!input) return;
+    
+    // Find the category container
+    const categoryContainer = input.categoryId ?
+      document.querySelector(`[id="${input.categoryId}"]`) :
+      document.querySelector('#uncategorized');
+    
+    // Get the appropriate task list (completed or active)
+    const taskList = categoryContainer.querySelector('.tasks-list');
+    const taskCompletedList = categoryContainer.querySelector('.tasks-list-completed');
+
+    const taskCard = document.createElement('li');
+    const createdAt = this.dateString(formatDate(input.createdAt));
+    const updatedAtValues = this.dateString(formatDate(input.updatedAt));
+    const finishedAtValues = this.dateString(formatDate(input.finishedAt));
+
+    const updatedTxt = updatedAtValues ? `última actualización: ${updatedAtValues}` : '';
+    const finishedTxt = finishedAtValues ? `finalizado: ${finishedAtValues}` : '';
+
+    const taskCompleted = !!input.completed;
+
+    taskCard.classList.add('task-card');
+    taskCard.dataset.id = input._id;
+
+    taskCard.innerHTML = `
+      <div class="task-info-main">
+        <button class="btn_crud btn_crud--finish" data-action="finish">
+          <img src="./assets/icons/check.svg">
+        </button>
+        <p class="task-text">
+          <span class="bold">${input.title}: </span>
+          <span>${input.description}</span>
+        </p>
+        <div class="btn_crud--container">
+          <button class="btn_crud btn_crud--edit" data-action="edit">
+            <img src="./assets/icons/edit.svg">
+          </button>
+          <button class="btn_crud btn_crud--delete" data-action="delete">
+            <img src="./assets/icons/delete.svg">
+          </button>
+        </div>
+      </div>
+      <div>
+        <p class="substring">
+          <span>creado: ${createdAt}</span>
+          <span>${updatedTxt}</span>
+          <span>${finishedTxt}</span>
+        </p>
+      </div>
+    `;
+
+    if (taskCompleted) {
+      taskCard.classList.add('completed');
+      taskCompletedList.appendChild(taskCard);
+    } else {
+      taskList.appendChild(taskCard);
+    }
+  }
+}
+```
+
+<Warning>
+  Task cards are rendered into different lists based on completion status, providing visual separation between active and completed tasks.
+</Warning>
+
+### Modal Rendering
+
+```javascript ~/workspace/source/public/js/views/Task.js
+static openModal(dataCategory, dataTask) {
+  let action = 'create';
+  let h2 = 'NUEVA TAREA';
+  let inputId = '', inputTitle = '', inputDescription = '', inputFinished = '', inputCategory = '';
+
+  if (dataTask) {
+    action = 'update';
+    h2 = 'ACTUALIZAR TAREA';
+    inputTitle = dataTask.title;
+    inputDescription = dataTask.description;
+    inputId = `<input type="text" name="id" value="${dataTask._id}" hidden>`;
+    if (dataTask.completed) { inputFinished = 'checked' }
+    inputCategory = dataTask.categoryId;
+  }
+
+  const modalFormBody = `
+    <form class="form-task">
+      <H2>${h2}</H2>
+      ${inputId}
+      <div class="form-group form-group--column">
+        <label for="task-name">Título:</label>
+        <input type="text" id="task-name" name="title" value="${inputTitle}" 
+               placeholder="Tu próxima tarea" maxlength="25" required>
+      </div>
+      <div class="form-group form-group--column">
+        <label for="task-description">Descripción:</label>
+        <textarea id="task-description" name="description" 
+                  placeholder="Qué tienes que hacer" maxlength="40" required>
+          ${inputDescription}
+        </textarea>
+      </div>
+      <div class="form-group form-group--row">
+        <div class="inline">
+          <label class="inline" for="task-finish">Finished</label>
+          <input class="inline" type="checkbox" id="task-finish" 
+                 name="finished" ${inputFinished}>
+        </div>
+        <div class="inline">
+          <label class="inline" for="task-category">Categoría</label>
+          <select name="categoryId" id="task-category">
+            ${dinamicSelect(dataCategory)}
+          </select>
+        </div>
+      </div>
+    </form>
+  `
+  Modal.open('task', action, modalFormBody);
+}
+```
+
+### Category Rendering
+
+```javascript ~/workspace/source/public/js/views/Task.js
+static renderCategory(input) {
+  const mainContainer = document.getElementById('task-categories-container');
+  const categoryContainer = document.createElement('div');
+
+  categoryContainer.classList.add('category-container');
+  categoryContainer.id = input._id
+
+  categoryContainer.innerHTML = `
+    <H2>${input.name}</H2>
+    <ul class='tasks-list'></ul>
+    <ul class='tasks-list-completed'></ul>
+  `;
+
+  mainContainer.appendChild(categoryContainer);
+}
+```
+
+<Accordion title="Why Two Task Lists per Category?">
+  Each category container has two separate lists: one for active tasks and one for completed tasks. This provides clear visual separation and makes it easy to toggle tasks between states without complex DOM manipulation.
+</Accordion>
+
+## Category Controller
+
+### State Management
+
+```javascript ~/workspace/source/public/js/controllers/TaskCategory.js
+export class TaskCategoryController {
+  constructor(apiURL) {
+    this.categoryService = new TaskCategoryService(apiURL);
+    this.categorieAside = new AsideController();
+    this.categoryManagement = document.getElementById("btn-category-control");
+    
+    // View state for create, edit, or delete modes
+    this.state = {
+      mode: "",
+      editingId: "",
+      selectedIds: new Set(),
+    };
+
+    this.addEventListener();
+  }
+}
+```
+
+### Multi-Mode Interface
+
+The category UI supports three modes:
+
+<Steps>
+  <Step title="List Mode">
+    Default view showing all categories with ability to add new ones
+  </Step>
+  
+  <Step title="Edit Mode">
+    Click a category to edit its name inline
+  </Step>
+  
+  <Step title="Delete Mode">
+    Select multiple categories with checkboxes for bulk deletion
+  </Step>
+</Steps>
+
+### Edit Implementation
+
+```javascript ~/workspace/source/public/js/controllers/TaskCategory.js
+async editCategory(data) {
+  const editedCategory = await this.categoryService.update(data);
+  const event = new CustomEvent('categoryUpdated', { 
+    detail: {action:'update', data: editedCategory } 
+  });
+  window.dispatchEvent(event);
+}
+
+cancelEditMode() {
+  this.state.mode = "list";
+  this.state.editingId = "";
+  this.init();
+}
+```
+
+### Delete with Selection
+
+```javascript ~/workspace/source/public/js/controllers/TaskCategory.js
+handleClickEvent(e) {
+  // Category checked/unchecked
+  if (e.target.type === "checkbox") {
+    if (e.target.checked) {
+      this.state.selectedIds.add(e.target.dataset.id);
+    } else {
+      this.state.selectedIds.delete(e.target.dataset.id);
+    }
+  }
+
+  // Delete selected categories
+  if ((e.target.id === "del-category-button") && 
+      (e.target.dataset.action === "confirmDelete")) {
+    const deletedCategories = this.categoryService.delete(this.state.selectedIds);
+    this.state.mode = "list";
+    this.init();
+    
+    // Dispatch event to refresh task view
+    const event = new CustomEvent('categoryUpdated', { 
+      detail: {action:'delete', data: deletedCategories } 
+    });
+    window.dispatchEvent(event);
+  }
+}
+```
+
+<Info>
+  Using a `Set` for `selectedIds` ensures no duplicates and provides efficient add/remove operations.
+</Info>
+
+## Category View
+
+### Dynamic Mode Rendering
+
+```javascript ~/workspace/source/public/js/views/TaskCategory.js
+export class TaskCategoryView {
+  static renderList(categoryContainer, input, state) {
+    const categoryUl = document.createElement("ul");
+    input.forEach((element) => {
+      const li = document.createElement("li");
+      li.dataset.id = element._id;
+      li.classList.add("category-li");
+      
+      switch (state.mode) {
+        case "list":
+          li.innerHTML = `${element.name}`;
+          break;
+          
+        case "delete":
+          const check = document.createElement("input");
+          const label = document.createElement("label");
+          check.type = "checkbox";
+          check.dataset.id = element._id;
+          check.id = element._id;
+          label.textContent = element.name;
+          label.htmlFor = element._id;
+          li.append(check, label);
+          break;
+          
+        case "edit":
+          if (state.editingId === element._id) {
+            const input = document.createElement("input");
+            input.type = "text";
+            input.value = element.name;
+            const btnSave = document.createElement("button");
+            btnSave.innerHTML = '<img src="./assets/icons/save.svg">';
+            btnSave.dataset.action = "saveEdit";
+            const btnCancel = document.createElement("button");
+            btnCancel.innerHTML = '<img src="./assets/icons/close.svg">';
+            btnCancel.dataset.action = "cancelEdit";
+            li.append(input, btnSave, btnCancel);
+          } else {
+            li.textContent = element.name;
+          }
+          break;
+      }
+      categoryUl.appendChild(li);
+    });
+    categoryContainer.appendChild(categoryUl);
+  }
+}
+```
+
+## Utility Functions
+
+### Date Formatting
+
+```javascript ~/workspace/source/public/js/utils/formatDate.js
+export function formatDate(isoString) {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  return {
+    day: String(date.getDate()).padStart(2, '0'),
+    month: String(date.getMonth() + 1).padStart(2, '0'),
+    year: date.getFullYear(),
+    hour: String(date.getHours()).padStart(2, '0'),
+    minutes: String(date.getMinutes()).padStart(2, '0')
+  };
+}
+```
+
+### Collection Sorting
+
+```javascript ~/workspace/source/public/js/utils/sortCollection.js
+export function sortCollection(collection, property, direction = 'asc') {
+  return [...collection].sort((a, b) => {
+    if (direction === 'asc') {
+      return a[property] > b[property] ? 1 : -1;
+    }
+    return a[property] < b[property] ? 1 : -1;
+  });
+}
+```
+
+### Dynamic Select Options
+
+```javascript ~/workspace/source/public/js/utils/dinamicSelect.js
+export function dinamicSelect(options) {
+  return options.map(option => 
+    `<option value="${option._id}">${option.name}</option>`
+  ).join('');
+}
+```
+
+<Tip>
+  Utility functions are kept pure and reusable, making them easy to test and maintain.
+</Tip>
+
+## Custom Event System
+
+### Event Architecture
+
+The application uses custom events for cross-component communication:
+
+<CardGroup cols={2}>
+  <Card title="modal:confirm" icon="square-check">
+    Fired when a modal form is submitted
+  </Card>
+  <Card title="categoryUpdated" icon="rotate">
+    Fired when categories are created, updated, or deleted
+  </Card>
+</CardGroup>
+
+### Event Pattern
+
+```javascript
+// Dispatching an event
+const event = new CustomEvent('categoryUpdated', { 
+  detail: {
+    action: 'create',  // or 'update', 'delete'
+    data: categoryData
+  }
+});
+window.dispatchEvent(event);
+
+// Listening for events
+window.addEventListener('categoryUpdated', (e) => {
+  console.log(e.detail.action, e.detail.data);
+  this.refresh();
+});
+```
+
+<Info>
+  Custom events provide loose coupling between components, making the architecture more maintainable and testable.
+</Info>
+
+## Best Practices
+
+<Accordion title="Separation of Concerns">
+  - **Controllers**: Handle business logic and event coordination
+  - **Views**: Manage DOM manipulation and rendering
+  - **Services**: Abstract API communication
+  - **Utils**: Provide reusable helper functions
+</Accordion>
+
+<Accordion title="Event Delegation">
+  Instead of attaching listeners to individual elements, the application uses event delegation on container elements with `data-action` attributes for better performance.
+</Accordion>
+
+<Accordion title="Error Handling">
+  Services catch network errors and return safe default values (empty arrays) to prevent application crashes.
+</Accordion>
+
+<Accordion title="State Management">
+  Controllers maintain local state (sort preferences, edit mode) while the backend remains the source of truth for data.
+</Accordion>
+
+## Performance Considerations
+
+<Tip>
+  **Efficient Rendering**: The app only re-renders affected components, not the entire UI, when data changes.
+</Tip>
+
+<Tip>
+  **Batch Operations**: Multiple categories can be deleted in a single API call, reducing network overhead.
+</Tip>
+
+<Tip>
+  **Event Delegation**: Single event listeners on containers handle all child element interactions.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Task Management" icon="list-check" href="/features/task-management">
+    Understand the backend API for tasks
+  </Card>
+  <Card title="Categories" icon="folder" href="/features/categories">
+    Learn about category management backend
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Complete API endpoint documentation
+  </Card>
+</CardGroup>

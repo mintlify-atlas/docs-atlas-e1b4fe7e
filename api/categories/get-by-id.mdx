@@ -1,0 +1,428 @@
+---
+title: 'Get Category by ID'
+api: 'GET /api/taskCategories/:id'
+description: 'Retrieve a specific category by its unique identifier'
+---
+
+## Endpoint
+
+```
+GET /api/taskCategories/:id
+```
+
+Retrieves a single task category by its UUID. Returns the complete category object.
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier (UUID) of the category to retrieve.
+  
+  Example: `a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d`
+</ParamField>
+
+## Response
+
+<ResponseField name="_id" type="string">
+  Unique identifier (UUID v4) of the category.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The category name (2-25 characters).
+</ResponseField>
+
+## Status Codes
+
+- **200 OK** - Category found and returned successfully
+- **404 Not Found** - No category exists with the provided ID
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:3000/api/taskCategories/a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d
+```
+
+```javascript JavaScript Fetch
+const categoryId = 'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d';
+const response = await fetch(`http://localhost:3000/api/taskCategories/${categoryId}`);
+
+if (response.ok) {
+  const category = await response.json();
+  console.log(category);
+} else if (response.status === 404) {
+  console.log('Category not found');
+}
+```
+
+```javascript JavaScript with Error Handling
+async function getCategory(categoryId) {
+  try {
+    const response = await fetch(
+      `http://localhost:3000/api/taskCategories/${categoryId}`
+    );
+    
+    if (response.status === 404) {
+      console.error('Category not found');
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const category = await response.json();
+    return category;
+    
+  } catch (error) {
+    console.error('Error fetching category:', error);
+    return null;
+  }
+}
+
+// Usage
+const category = await getCategory('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d');
+if (category) {
+  console.log(`Category: ${category.name}`);
+}
+```
+
+</CodeGroup>
+
+### Response Examples
+
+<CodeGroup>
+
+```json 200 OK
+{
+  "_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+  "name": "Work"
+}
+```
+
+```json 404 Not Found
+{
+  "message": "Category not found"
+}
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+<Warning>
+  The category ID must be a valid UUID v4 format. Invalid formats will result in the category not being found (404 response).
+</Warning>
+
+<Info>
+  This endpoint is useful for:
+  - Displaying category details
+  - Verifying category existence before creating tasks
+  - Validating category IDs from user input
+</Info>
+
+## Common Use Cases
+
+### Check if Category Exists
+
+```javascript
+async function categoryExists(categoryId) {
+  const response = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`
+  );
+  return response.status === 200;
+}
+
+if (await categoryExists('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d')) {
+  console.log('Category exists!');
+}
+```
+
+### Get Category with Task Count
+
+```javascript
+async function getCategoryWithTasks(categoryId) {
+  // Fetch category and tasks in parallel
+  const [categoryRes, tasksRes] = await Promise.all([
+    fetch(`http://localhost:3000/api/taskCategories/${categoryId}`),
+    fetch('http://localhost:3000/api/tasks')
+  ]);
+  
+  if (!categoryRes.ok) {
+    return null;
+  }
+  
+  const category = await categoryRes.json();
+  const allTasks = await tasksRes.json();
+  
+  // Filter tasks for this category
+  const categoryTasks = allTasks.filter(
+    task => task.categoryId === categoryId
+  );
+  
+  return {
+    ...category,
+    taskCount: categoryTasks.length,
+    tasks: categoryTasks
+  };
+}
+
+// Usage
+const categoryData = await getCategoryWithTasks(
+  'a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d'
+);
+
+if (categoryData) {
+  console.log(`${categoryData.name} has ${categoryData.taskCount} tasks`);
+}
+```
+
+### Validate Category Before Task Creation
+
+```javascript
+async function createTaskWithValidation(taskData) {
+  // Validate category exists if provided
+  if (taskData.categoryId && taskData.categoryId !== 'uncategorized') {
+    const categoryResponse = await fetch(
+      `http://localhost:3000/api/taskCategories/${taskData.categoryId}`
+    );
+    
+    if (categoryResponse.status === 404) {
+      console.error('Invalid category ID');
+      return null;
+    }
+  }
+  
+  // Create task
+  const taskResponse = await fetch('http://localhost:3000/api/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(taskData)
+  });
+  
+  return await taskResponse.json();
+}
+```
+
+### Get Category Name for Display
+
+```javascript
+async function getCategoryName(categoryId) {
+  if (categoryId === 'uncategorized') {
+    return 'Uncategorized';
+  }
+  
+  const response = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`
+  );
+  
+  if (!response.ok) {
+    return 'Unknown Category';
+  }
+  
+  const category = await response.json();
+  return category.name;
+}
+
+// Usage
+const name = await getCategoryName('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d');
+console.log('Category:', name);
+```
+
+### Display Category Details
+
+```javascript
+async function displayCategoryInfo(categoryId) {
+  const response = await fetch(
+    `http://localhost:3000/api/taskCategories/${categoryId}`
+  );
+  
+  if (response.status === 404) {
+    console.log('Category not found');
+    return;
+  }
+  
+  const category = await response.json();
+  
+  console.log('═══════════════════════');
+  console.log(`Category: ${category.name}`);
+  console.log(`ID: ${category._id}`);
+  console.log('═══════════════════════');
+}
+```
+
+## Integration Examples
+
+### React Hook
+
+```javascript
+import { useState, useEffect } from 'react';
+
+function useCategory(categoryId) {
+  const [category, setCategory] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    if (!categoryId) {
+      setLoading(false);
+      return;
+    }
+    
+    async function fetchCategory() {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `http://localhost:3000/api/taskCategories/${categoryId}`
+        );
+        
+        if (response.status === 404) {
+          setError('Category not found');
+          setCategory(null);
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch category');
+        }
+        
+        const data = await response.json();
+        setCategory(data);
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+        setCategory(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchCategory();
+  }, [categoryId]);
+  
+  return { category, loading, error };
+}
+
+// Usage in component
+function CategoryDisplay({ categoryId }) {
+  const { category, loading, error } = useCategory(categoryId);
+  
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+  if (!category) return <div>Category not found</div>;
+  
+  return <h2>{category.name}</h2>;
+}
+```
+
+### Category Cache
+
+```javascript
+class CategoryCache {
+  constructor() {
+    this.cache = new Map();
+  }
+  
+  async get(categoryId) {
+    // Check cache first
+    if (this.cache.has(categoryId)) {
+      return this.cache.get(categoryId);
+    }
+    
+    // Fetch from API
+    const response = await fetch(
+      `http://localhost:3000/api/taskCategories/${categoryId}`
+    );
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const category = await response.json();
+    
+    // Store in cache
+    this.cache.set(categoryId, category);
+    
+    return category;
+  }
+  
+  invalidate(categoryId) {
+    this.cache.delete(categoryId);
+  }
+  
+  clear() {
+    this.cache.clear();
+  }
+}
+
+// Usage
+const categoryCache = new CategoryCache();
+const category = await categoryCache.get('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d');
+```
+
+## Error Handling Patterns
+
+### With Fallback
+
+```javascript
+async function getCategoryOrFallback(categoryId, fallback = 'Uncategorized') {
+  try {
+    const response = await fetch(
+      `http://localhost:3000/api/taskCategories/${categoryId}`
+    );
+    
+    if (response.status === 404) {
+      return { _id: categoryId, name: fallback };
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching category:', error);
+    return { _id: categoryId, name: fallback };
+  }
+}
+```
+
+### With Retry Logic
+
+```javascript
+async function getCategoryWithRetry(categoryId, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(
+        `http://localhost:3000/api/taskCategories/${categoryId}`
+      );
+      
+      if (response.status === 404) {
+        // Don't retry 404s
+        return null;
+      }
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      // Server error, may retry
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+      
+      throw new Error(`HTTP ${response.status}`);
+      
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+```
+
+## Related Endpoints
+
+- [Get All Categories](/api/categories/get-all) - Retrieve all categories
+- [Create Category](/api/categories/create) - Create a new category
+- [Update Category](/api/categories/update) - Modify this category
+- [Delete Categories](/api/categories/delete) - Remove this category

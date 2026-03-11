@@ -1,97 +1,100 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Task Manager"
+description: "A modern full-stack task management application built with Express.js and vanilla JavaScript"
 ---
 
-## Setting up
+<div className="hero-section" style={{
+  background: 'linear-gradient(135deg, #020627 0%, #11161e 100%)',
+  borderRadius: '12px',
+  padding: '60px 40px',
+  marginBottom: '40px',
+  border: '1px solid rgba(96,99,146,0.3)'
+}}>
+  <h1 style={{
+    fontSize: '48px',
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: '20px',
+    fontFamily: 'Inter'
+  }}>Task Manager</h1>
+  <p style={{
+    fontSize: '20px',
+    color: '#cfd0d2',
+    marginBottom: '30px',
+    maxWidth: '800px'
+  }}>
+    A full-stack task management system with RESTful API, category organization, and an intuitive user interface. Built with modern web technologies and designed for simplicity and scalability.
+  </p>
+  <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+    <a href="/quickstart" style={{
+      backgroundColor: '#238636',
+      color: '#ffffff',
+      padding: '12px 24px',
+      borderRadius: '6px',
+      textDecoration: 'none',
+      fontWeight: '600',
+      display: 'inline-block'
+    }}>Get Started</a>
+    <a href="https://github.com/JoseJavega/taskManager" style={{
+      backgroundColor: 'transparent',
+      color: '#ffffff',
+      padding: '12px 24px',
+      borderRadius: '6px',
+      textDecoration: 'none',
+      fontWeight: '600',
+      display: 'inline-block',
+      border: '1px solid rgba(96,99,146,1)'
+    }}>View on GitHub</a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+## Quick Start
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+Get up and running with Task Manager in minutes.
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="download" href="/quickstart">
+    Install dependencies and configure your environment
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the complete REST API documentation
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Core Features
 
-Everything you need to create world-class documentation.
+Everything you need to manage tasks effectively.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Task Management" icon="list-check" href="/features/task-management">
+    Create, update, and track tasks with completion status
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Category Organization" icon="folder-tree" href="/features/categories">
+    Organize tasks with custom categories
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Modern UI" icon="browser" href="/features/frontend-ui">
+    Vanilla JavaScript frontend with MVC architecture
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="RESTful API" icon="server" href="/api/overview">
+    Express.js backend with Zod validation
   </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## Architecture
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+Understand how Task Manager is built.
+
+<CardGroup cols={2}>
+  <Card title="System Overview" icon="diagram-project" href="/architecture/overview">
+    Learn about the full-stack architecture
+  </Card>
+  <Card title="Backend" icon="terminal" href="/architecture/backend">
+    Express.js API with modular design
+  </Card>
+  <Card title="Frontend" icon="window" href="/architecture/frontend">
+    Vanilla JavaScript with MVC pattern
+  </Card>
+  <Card title="Database" icon="database" href="/architecture/database">
+    File-based persistence with db-local
+  </Card>
+</CardGroup>

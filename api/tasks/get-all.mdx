@@ -1,0 +1,195 @@
+---
+title: 'Get All Tasks'
+api: 'GET /api/tasks'
+description: 'Retrieve a list of all tasks'
+---
+
+## Endpoint
+
+```
+GET /api/tasks
+```
+
+Retrieves all tasks from the database. Returns an array of task objects including their IDs, titles, descriptions, completion status, category assignments, and timestamps.
+
+## Query Parameters
+
+Currently, this endpoint does not support query parameters for filtering, sorting, or pagination. All tasks are returned in a single response.
+
+<Note>
+  The source code includes a TODO comment indicating future support for filtering by `categoryId` and other parameters.
+</Note>
+
+## Response
+
+<ResponseField name="response" type="array">
+  An array of Task objects. Returns an empty array `[]` if no tasks exist.
+</ResponseField>
+
+<Expandable title="Task Object Properties">
+
+<ResponseField name="_id" type="string">
+  Unique identifier (UUID v4) of the task.
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The task title (3-25 characters).
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Optional task description (max 25 characters).
+</ResponseField>
+
+<ResponseField name="completed" type="boolean">
+  Completion status of the task.
+</ResponseField>
+
+<ResponseField name="categoryId" type="string">
+  UUID of the assigned category or `"uncategorized"`.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of task creation.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp of last update.
+</ResponseField>
+
+<ResponseField name="finishedAt" type="string | null">
+  ISO 8601 timestamp when task was completed, or `null` if incomplete.
+</ResponseField>
+
+</Expandable>
+
+## Status Codes
+
+- **200 OK** - Successfully retrieved all tasks
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:3000/api/tasks
+```
+
+```javascript JavaScript Fetch
+const response = await fetch('http://localhost:3000/api/tasks');
+const tasks = await response.json();
+console.log(tasks);
+```
+
+```javascript JavaScript with Error Handling
+try {
+  const response = await fetch('http://localhost:3000/api/tasks');
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  const tasks = await response.json();
+  console.log(`Retrieved ${tasks.length} tasks`);
+  
+  // Filter completed tasks
+  const completedTasks = tasks.filter(task => task.completed);
+  console.log(`${completedTasks.length} tasks are completed`);
+  
+} catch (error) {
+  console.error('Error fetching tasks:', error);
+}
+```
+
+</CodeGroup>
+
+### Response Example
+
+<CodeGroup>
+
+```json 200 OK - Multiple Tasks
+[
+  {
+    "_id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Write API documentation",
+    "description": "Create comprehensive docs",
+    "completed": true,
+    "categoryId": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "createdAt": "2026-03-11T10:00:00.000Z",
+    "updatedAt": "2026-03-11T16:00:00.000Z",
+    "finishedAt": "2026-03-11T16:00:00.000Z"
+  },
+  {
+    "_id": "d4c3b2a1-0f1e-4d3c-9b8a-7c6b5a4d3e2f",
+    "title": "Review pull request",
+    "description": "Check code quality",
+    "completed": false,
+    "categoryId": "uncategorized",
+    "createdAt": "2026-03-11T12:00:00.000Z",
+    "updatedAt": "2026-03-11T12:00:00.000Z"
+  },
+  {
+    "_id": "f1e2d3c4-b5a6-4978-8c9d-0a1b2c3d4e5f",
+    "title": "Buy groceries",
+    "completed": false,
+    "categoryId": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+    "createdAt": "2026-03-11T14:00:00.000Z"
+  }
+]
+```
+
+```json 200 OK - Empty
+[]
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+<Info>
+  **Performance Consideration**: Since this endpoint returns all tasks without pagination, be aware of performance implications if your application manages a large number of tasks.
+</Info>
+
+<Tip>
+  To filter tasks by category on the client side:
+  
+  ```javascript
+  const tasks = await fetch('http://localhost:3000/api/tasks').then(r => r.json());
+  const workTasks = tasks.filter(task => task.categoryId === 'your-category-uuid');
+  const uncategorizedTasks = tasks.filter(task => task.categoryId === 'uncategorized');
+  ```
+</Tip>
+
+## Common Use Cases
+
+### Get All Completed Tasks
+
+```javascript
+const response = await fetch('http://localhost:3000/api/tasks');
+const tasks = await response.json();
+const completed = tasks.filter(task => task.completed === true);
+```
+
+### Get Tasks by Category
+
+```javascript
+const response = await fetch('http://localhost:3000/api/tasks');
+const tasks = await response.json();
+const categoryTasks = tasks.filter(task => 
+  task.categoryId === '550e8400-e29b-41d4-a716-446655440000'
+);
+```
+
+### Sort Tasks by Creation Date
+
+```javascript
+const response = await fetch('http://localhost:3000/api/tasks');
+const tasks = await response.json();
+tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+```
+
+## Related Endpoints
+
+- [Get Task by ID](/api/tasks/get-by-id) - Retrieve a specific task
+- [Create Task](/api/tasks/create) - Create a new task
+- [Update Task](/api/tasks/update) - Modify an existing task
+- [Delete Task](/api/tasks/delete) - Remove a task
